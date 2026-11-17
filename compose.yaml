@@ -1,0 +1,37 @@
+name: opdracht
+services:
+  app:
+    build:
+      context: .
+      target: app
+    image: opdracht:local
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${APP_PORT:-8080}:80"
+    environment:
+      APP_NAME: Opdracht
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_KEY: ${APP_KEY:?APP_KEY fehlt; zuerst ./docker/init-env.sh ausführen}
+      APP_URL: ${APP_URL:-http://localhost:8080}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Berlin}
+      APP_LOCALE: de
+      APP_FALLBACK_LOCALE: en
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /data/database.sqlite
+      SESSION_DRIVER: database
+      SESSION_LIFETIME: 10080
+      SESSION_SECURE_COOKIE: ${SESSION_SECURE_COOKIE:-false}
+      SESSION_SAME_SITE: lax
+      CACHE_STORE: database
+      QUEUE_CONNECTION: sync
+      LOG_CHANNEL: stderr
+      LOG_LEVEL: warning
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+    volumes:
+      - database:/data
+      - storage:/var/www/html/storage
+    stop_grace_period: 30s
+volumes:
+  database:
+  storage:

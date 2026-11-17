@@ -1,0 +1,27 @@
+# Docker Compose >= 2.24.4 (supports !reset).
+services:
+  app:
+    ports: !reset []
+    environment:
+      APP_URL: https://${APP_DOMAIN:?APP_DOMAIN muss auf diesen Server zeigen}
+      SESSION_SECURE_COOKIE: "true"
+      TRUSTED_PROXIES: "*"
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?APP_DOMAIN fehlt}
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+volumes:
+  caddy_data:
+  caddy_config:

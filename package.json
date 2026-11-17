@@ -1,0 +1,8 @@
+{
+  "name": "opdracht",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check public/app.js && node --check public/sw.js"
+  }
+}
