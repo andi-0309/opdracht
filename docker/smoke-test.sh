@@ -11,7 +11,7 @@ for attempt in $(seq 1 30); do
     sleep 1
 done
 if [ "$ready" != true ]; then docker logs "$container"; exit 1; fi
-for path in login sw.js offline.html app.css app.js manifest.webmanifest icons/icon.svg icons/icon-192.png icons/icon-512.png icons/apple-touch-icon.png; do
+for path in login sw.js offline.html app.css app.js theme.js manifest.webmanifest icons/icon.svg icons/icon-192.png icons/icon-512.png icons/apple-touch-icon.png; do
     docker exec "$container" curl -fsS "http://localhost/$path" >/dev/null
 done
 for path in .env composer.json database/database.sqlite storage/logs/laravel.log; do

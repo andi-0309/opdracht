@@ -28,6 +28,12 @@ services:
       LOG_CHANNEL: stderr
       LOG_LEVEL: warning
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      OIDC_ENABLED: ${OIDC_ENABLED:-false}
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-}
+      OIDC_LOCAL_LOGIN: ${OIDC_LOCAL_LOGIN:-true}
     volumes:
       - database:/data
       - storage:/var/www/html/storage

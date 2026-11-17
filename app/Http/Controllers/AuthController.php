@@ -13,6 +13,7 @@ class AuthController extends Controller
 {
     public function login(Request $request): RedirectResponse
     {
+        abort_unless(config('oidc.local_login'), 403);
         $data = $request->validate(['email' => ['required', 'email'], 'password' => ['required', 'string']]);
         $data['email'] = Str::lower($data['email']);
         $key = $data['email'].'|'.$request->ip();

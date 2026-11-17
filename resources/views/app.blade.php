@@ -6,11 +6,12 @@
     <meta name="theme-color" content="#f7f8f2">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="description" content="Aufgaben, Quests und Fokuszeiten.">
-    <link rel="manifest" href="/manifest.webmanifest">
-    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-    <link rel="stylesheet" href="/app.css">
-    <script src="/app.js" defer></script>
+    <link rel="manifest" href="/manifest.webmanifest?v=4">
+    <link rel="icon" href="/icons/icon.svg?v=4" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=4">
+    <script src="/theme.js?v=4"></script>
+    <link rel="stylesheet" href="/app.css?v=4">
+    <script src="/app.js?v=4" defer></script>
     <title>Opdracht</title>
 </head>
 <body>
@@ -28,7 +29,7 @@
         <div class="sidebar-bottom"><form action="/logout" method="post">@csrf<button class="text-button" type="submit">Abmelden <span aria-hidden="true">↗</span></button></form></div>
     </aside>
     <main id="content" tabindex="-1">
-        <div class="topbar"><span id="date-label">Opdracht</span><div class="topbar-actions"><button id="install" class="text-button" hidden>Installieren ↗</button><span class="connection"><i></i><span id="connection-text">Verbunden</span></span><form class="mobile-logout" action="/logout" method="post">@csrf<button class="icon-button" type="submit" aria-label="Abmelden" title="Abmelden">↗</button></form></div></div>
+        <div class="topbar"><span id="date-label">Opdracht</span><div class="topbar-actions"><label class="theme-picker"><span class="sr-only">Darstellung</span><select data-theme-select aria-label="Darstellung"><option value="system">System</option><option value="light">Hell</option><option value="dark">Dunkel</option></select></label><button id="install" class="text-button" hidden>Installieren ↗</button><span class="connection"><i></i><span id="connection-text">Verbunden</span></span><form class="mobile-logout" action="/logout" method="post">@csrf<button class="icon-button" type="submit" aria-label="Abmelden" title="Abmelden">↗</button></form></div></div>
         <div id="notice" class="notice" role="alert" hidden></div><div id="pwa-notice" class="notice" role="status" hidden></div>
         <div id="screen" aria-live="polite"><div class="empty"><div class="empty-symbol">◌</div><p>Aufgaben werden geladen …</p></div></div>
     </main>

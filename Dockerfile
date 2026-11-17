@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 FROM php:8.5-apache AS base
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libicu-dev libonig-dev libsqlite3-dev libzip-dev curl sqlite3 gosu \

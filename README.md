@@ -6,7 +6,8 @@ Eine kleine, selbst gehostete Laravel-Anwendung für Ziele, Tagesaufgaben und Fo
 
 - Aufgaben anlegen, bearbeiten, einem Ziel und Tag zuordnen, erledigen und löschen.
 - Tagesansicht, Wochenplanung, Ziele, Fokus-Timer und Wochenrückblick.
-- Anmeldung ohne öffentliche Registrierung. Aufgaben und Ziele gehören jeweils einem Benutzer.
+- Darstellung wahlweise System, Hell oder Dunkel; Auswahl bleibt auf dem Gerät gespeichert. Größere Texte und mindestens 48 px hohe Aktionsflächen erleichtern die Bedienung am Handy.
+- Lokale Anmeldung oder optional Authentik über OpenID Connect. Aufgaben, Ziele und Fokuszeiten gehören jeweils einem Benutzer.
 - Fokuszeiten auf dem Server: Ein laufender Timer bleibt bei Neuladen und Gerätewechsel erhalten.
 - Installierbare PWA für Mobilgeräte mit Offline-Hinweis. Lesen und Änderungen an persönlichen Daten benötigen eine Verbindung; persönliche Inhalte werden nicht im Service Worker zwischengespeichert.
 - Laravel 13, PHP 8.5, SQLite, einfache JavaScript-/CSS-Oberfläche. Keine externen Schriftarten, Analyse- oder Cloud-Dienste nötig.
@@ -54,6 +55,51 @@ HTTPS ist für die PWA-Installation am Handy erforderlich; eine unverschlüsselt
 
 Bei einem bestehenden Reverse Proxy die Standardinstallation auf `127.0.0.1:8080` verwenden, `APP_URL` auf die öffentliche HTTPS-Adresse und `SESSION_SECURE_COOKIE=true` setzen. `TRUSTED_PROXIES` nur für die tatsächlichen Proxy-Adressen konfigurieren. Ein Proxy in einem anderen Container benötigt ein gemeinsames Docker-Netzwerk; dessen `localhost` ist nicht der Host.
 
+## Authentik-Anmeldung (optional)
+
+Authentik entscheidet, wer Opdracht verwenden darf. Jede zugelassene Person erhält bei der ersten Anmeldung automatisch einen eigenen, getrennten Bereich; Opdracht benötigt keine zusätzliche E-Mail-Allowlist und keine vorherige Kontoanlage per CLI. Die Anwendung und Authentik müssen über HTTPS erreichbar sein.
+
+In der Authentik-Administration eine Anwendung mit dem Slug `opdracht` und einem **OAuth2/OpenID Connect**-Provider anlegen. Folgende Einstellungen verwenden:
+
+| Einstellung | Wert für Opdracht |
+| --- | --- |
+| Client type | `Confidential` |
+| Grant type | Authorization code |
+| Redirect URI | `Strict`: `https://opdracht.example.com/auth/oidc/callback` |
+| Issuer mode | Eigener Issuer je Provider/Anwendungs-Slug |
+| Signing Key | RSA-Schlüsselpaar für `RS256` |
+| Encryption Key | Nicht setzen; verschlüsselte JWE-ID-Tokens werden nicht unterstützt |
+| Scope mappings | `openid`, `profile`, `email`; Benutzer-Claims im ID-Token einschließen |
+
+Redirect URI und Issuer müssen exakt stimmen, einschließlich Pfad und abschließendem Slash beim Issuer. Ohne Signing Key verwendet Authentik HS256; Opdracht erwartet RS256. Der empfohlene Issuer für dieses Beispiel lautet `https://auth.example.com/application/o/opdracht/`. Siehe die offiziellen Angaben zu [OAuth2/OIDC, Issuer und Signaturen](https://docs.goauthentik.io/add-secure-apps/providers/oauth2/).
+
+Die gewünschten Benutzer, Gruppen oder Policies unter **Policy / Group / User Bindings** an die Authentik-Anwendung binden. Ohne Bindings lässt Authentik standardmäßig alle seine Benutzer zu. Opdracht übernimmt die dort erteilte Zugangsentscheidung. Siehe [Authentik: Anwendungszugriff über Bindings](https://docs.goauthentik.io/add-secure-apps/applications/manage_apps/#use-bindings-to-control-access).
+
+Client ID und Client Secret des Providers in der lokalen `.env` eintragen:
+
+```dotenv
+OIDC_ENABLED=true
+OIDC_ISSUER=https://auth.example.com/application/o/opdracht/
+OIDC_CLIENT_ID=deine-client-id
+OIDC_CLIENT_SECRET=dein-client-secret
+OIDC_REDIRECT_URI=https://opdracht.example.com/auth/oidc/callback
+OIDC_LOCAL_LOGIN=true
+```
+
+`OIDC_REDIRECT_URI` darf leer bleiben, wenn `APP_URL` korrekt gesetzt ist: dann verwendet Opdracht `APP_URL` mit `/auth/oidc/callback`. Das Secret gehört ausschließlich in `.env`, niemals ins Repository. Nach Änderungen den Container neu erstellen, damit Umgebungswerte und Konfigurationscache aktualisiert werden:
+
+```sh
+docker compose -f compose.yaml -f compose.https.yaml up -d --build --force-recreate app
+```
+
+Auf der Anmeldeseite **Mit Authentik anmelden** auswählen. Zuerst mit einem berechtigten und einem nicht berechtigten Authentik-Konto prüfen, ob die App-Policy wie gewünscht wirkt. Danach kann `OIDC_LOCAL_LOGIN=false` das lokale Passwortformular deaktivieren. Mit dieser Einstellung müssen auch Administratoren Authentik verwenden; Serverzugriff erlaubt, sie bei Bedarf wieder auf `true` zu setzen.
+
+Die Zuordnung erfolgt dauerhaft über das Paar `iss` + `sub`, nicht über die E-Mail-Adresse. Ein vorhandenes lokales Konto mit derselben E-Mail wird **nicht automatisch verknüpft**; die Anmeldung zeigt in diesem Fall einen Konflikt. Bestehende lokale Konten lassen sich in dieser Version nicht per Oberfläche in SSO-Konten umwandeln. Issuer und Subject-Konfiguration nach der ersten Nutzung deshalb nicht ohne geplante Datenmigration wechseln.
+
+Der Login verwendet Authorization Code mit PKCE S256, State und Nonce sowie eine Prüfung der RS256-Signatur. OIDC-Tokens werden nicht dauerhaft gespeichert. **Abmelden** beendet ausschließlich die Opdracht-Sitzung; die Authentik-Sitzung bleibt bestehen. Ein Zugriffs- oder Kontowiderruf in Authentik verhindert die nächste Anmeldung, beendet aber keine bereits laufende Opdracht-Sitzung: diese besteht bis zum Abmelden oder Sitzungsablauf weiter. Front-/Back-Channel-Logout und laufende Introspection sind nicht implementiert.
+
+Die Authentik-Konfiguration muss auf deiner Instanz abschließend getestet werden. Die Implementierung wird automatisiert gegen simulierte OIDC-Antworten geprüft; eine reale Authentik-Instanz war bei der Entwicklung nicht verfügbar.
+
 ## Backup und Wiederherstellung
 
 Eine konsistente SQLite-Sicherung im laufenden Betrieb erstellen:
@@ -79,7 +125,7 @@ Den ursprünglichen `APP_KEY` beibehalten. `docker compose down` behält Daten; 
 
 ## Passwort zurücksetzen
 
-Bei vergessenem Passwort ist nur Serverzugriff nötig; es gibt keinen E-Mail-Dienst:
+Für ein lokales Konto ist bei vergessenem Passwort nur Serverzugriff nötig; es gibt keinen E-Mail-Dienst. Passwörter von SSO-Konten werden in Authentik verwaltet:
 
 ```sh
 docker compose exec --user www-data app php artisan opdracht:user you@example.com --reset-password
