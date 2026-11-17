@@ -6,12 +6,12 @@
     <meta name="theme-color" content="#f7f8f2">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="description" content="Aufgaben, Quests und Fokuszeiten.">
-    <link rel="manifest" href="/manifest.webmanifest?v=4">
-    <link rel="icon" href="/icons/icon.svg?v=4" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=4">
-    <script src="/theme.js?v=4"></script>
-    <link rel="stylesheet" href="/app.css?v=4">
-    <script src="/app.js?v=4" defer></script>
+    <link rel="manifest" href="/manifest.webmanifest?v=5">
+    <link rel="icon" href="/icons/icon.svg?v=5" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=5">
+    <script src="/theme.js?v=5"></script>
+    <link rel="stylesheet" href="/app.css?v=5">
+    <script src="/app.js?v=5" defer></script>
     <title>Opdracht</title>
 </head>
 <body>

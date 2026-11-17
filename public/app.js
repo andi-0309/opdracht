@@ -74,7 +74,7 @@ function stats() {
     const todayTasks = state.tasks.filter(t => dateValue(t.scheduled_for) === state.today);
     const done = todayTasks.filter(t => t.completed_at).length;
     const active = state.quests.filter(q => !q.completed_at).length;
-    return `<div class="stats-strip"><div class="stat"><span class="stat-label">HEUTE GESCHAFFT <span class="stat-decoration">✓</span></span><span class="stat-value">${done}<small>/ ${todayTasks.length}</small></span></div><div class="stat"><span class="stat-label">FOKUS DIESE WOCHE <span class="stat-decoration">◷</span></span><span class="stat-value">${escapeHtml(duration(state.weekly.seconds))}</span></div><div class="stat"><span class="stat-label">AKTIVE QUESTS <span class="stat-decoration">◇</span></span><span class="stat-value">${active.toString().padStart(2,'0')}</span></div></div>`;
+    return `<div class="stats-strip"><div class="stat"><span class="stat-label">Heute geschafft <span class="stat-decoration">✓</span></span><span class="stat-value">${done}<small>/ ${todayTasks.length}</small></span></div><div class="stat"><span class="stat-label">Fokus diese Woche <span class="stat-decoration">◷</span></span><span class="stat-value">${escapeHtml(duration(state.weekly.seconds))}</span></div><div class="stat"><span class="stat-label">Aktive Quests <span class="stat-decoration">◇</span></span><span class="stat-value">${active}</span></div></div>`;
 }
 function taskRow(task, compact = false) {
     const running = state.focus?.task_id === task.id;
@@ -110,7 +110,7 @@ function focusScreen() {
 function reviewScreen() {
     const quests=state.quests.map(q=>({...q,seconds:state.tasks.filter(t=>t.quest_id===q.id).reduce((sum,t)=>sum+Number(t.focus_seconds||0),0)})).filter(q=>q.seconds>0).sort((a,b)=>b.seconds-a.seconds);
     const total=quests.reduce((sum,q)=>sum+q.seconds,0);
-    return header('Rückblick') + `<div class="stats-strip"><div class="stat"><span class="stat-label">FOKUS DIESE WOCHE</span><span class="stat-value">${duration(state.weekly.seconds)}</span></div><div class="stat"><span class="stat-label">DIESE WOCHE ERLEDIGT</span><span class="stat-value">${state.weekly.completed}<small>Aufgaben</small></span></div><div class="stat"><span class="stat-label">QUESTS ABGESCHLOSSEN</span><span class="stat-value">${state.quests.filter(q=>q.completed_at).length}</span></div></div><section class="review-panel"><h2>Fokuszeit nach Quest</h2><p class="review-note">Gesamtzeit der vorhandenen Aufgaben.</p>${quests.length?quests.map(q=>`<div class="review-row">${tag(q)}<strong>${duration(q.seconds)}</strong></div><div class="review-bar"><span style="width:${Math.round(q.seconds/total*100)}%;background:${color(q.color)}"></span></div>`).join(''):'<p class="empty-small">Noch keine Fokuszeit gespeichert.</p>'}</section>`;
+    return header('Rückblick') + `<div class="stats-strip"><div class="stat"><span class="stat-label">Fokus diese Woche</span><span class="stat-value">${duration(state.weekly.seconds)}</span></div><div class="stat"><span class="stat-label">DIESE WOCHE ERLEDIGT</span><span class="stat-value">${state.weekly.completed}<small>Aufgaben</small></span></div><div class="stat"><span class="stat-label">QUESTS ABGESCHLOSSEN</span><span class="stat-value">${state.quests.filter(q=>q.completed_at).length}</span></div></div><section class="review-panel"><h2>Fokuszeit nach Quest</h2><p class="review-note">Gesamtzeit der vorhandenen Aufgaben.</p>${quests.length?quests.map(q=>`<div class="review-row">${tag(q)}<strong>${duration(q.seconds)}</strong></div><div class="review-bar"><span style="width:${Math.round(q.seconds/total*100)}%;background:${color(q.color)}"></span></div>`).join(''):'<p class="empty-small">Noch keine Fokuszeit gespeichert.</p>'}</section>`;
 }
 function render() {
     if(!state) return;
@@ -201,7 +201,7 @@ function pwaError(error) {
     output.hidden = false;
 }
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=4').then(registration => {
+    navigator.serviceWorker.register('/sw.js?v=5').then(registration => {
         const watch = () => {
             const worker = registration.installing;
             worker?.addEventListener('statechange', () => {

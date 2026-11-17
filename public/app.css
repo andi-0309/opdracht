@@ -256,10 +256,10 @@ label textarea { min-height: 110px; resize: vertical; }
     #install { font-size: 15px; }
     .page-header { padding: 28px 0 24px; }
     .page-header h1 { font-size: 38px; }
-    .stats-strip { margin: 5px 0 30px; }
-    .stat { padding: 17px 11px; }
-    .stat-label { font-size: 12px; line-height: 1.5; letter-spacing: 0; }
-    .stat-value { font-size: 28px; margin-top: 10px; line-height: 1.4; }
+    .stats-strip { grid-template-columns: 1fr; margin: 5px 0 30px; }
+    .stat { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 16px; border-right: 0; border-bottom: 1px solid var(--line); }
+    .stat-label { font-size: 15px; line-height: 1.5; letter-spacing: 0; }
+    .stat-value { font-size: 26px; margin-top: 0; line-height: 1.4; text-align: right; white-space: nowrap; }
     .stat-value small { font-size: 14px; margin-left: 3px; }
     .task { padding: 14px 0; gap: 10px; }
     .task-title { font-size: 18px; }
@@ -282,7 +282,7 @@ label textarea { min-height: 110px; resize: vertical; }
 }
 @media (max-width: 370px) {
     .app-layout main { padding-left: 14px; padding-right: 14px; }
-    .stat { padding: 15px 8px; }
+    .stat { padding: 12px 14px; }
     .stat-value { font-size: 25px; }
     .nav a { font-size: 12px; }
     .week-grid { margin-right: -14px; padding-right: 14px; }
