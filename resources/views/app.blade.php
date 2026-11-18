@@ -10,8 +10,8 @@
     <link rel="icon" href="/icons/icon.svg?v=5" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=5">
     <script src="/theme.js?v=6"></script>
-    <link rel="stylesheet" href="/app.css?v=6">
-    <script src="/app.js?v=6" defer></script>
+    <link rel="stylesheet" href="/app.css?v=7">
+    <script src="/app.js?v=7" defer></script>
     <title>Opdracht</title>
 </head>
 <body>
@@ -34,12 +34,6 @@
         <div id="screen"><div class="empty"><div class="empty-symbol">◌</div><p>Aufgaben werden geladen …</p></div></div>
     </main>
 </div>
-<dialog id="focus-dialog" class="immersive-dialog" aria-labelledby="immersive-title" aria-describedby="immersive-exit-hint">
-    <header class="immersive-header"><h2 id="immersive-title">Vollbild-Fokus</h2><button id="exit-immersive" class="button subtle" data-action="exit-immersive" autofocus><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/icons/ui.svg?v=6#x"></use></svg> Vollbild verlassen</button></header>
-    <p id="immersive-exit-hint" class="immersive-exit-hint">Esc oder „Vollbild verlassen“ schließt nur diese Ansicht. Ein laufender Timer läuft weiter.</p>
-    <div id="immersive-notice" class="notice" role="alert" hidden></div>
-    <div id="immersive-content"></div>
-</dialog>
 <dialog id="editor" aria-labelledby="editor-title"><form id="editor-form"><div class="dialog-header"><h2 id="editor-title"></h2><button type="button" class="icon-button" data-close aria-label="Dialog schließen"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/icons/ui.svg?v=6#x"></use></svg></button></div><div id="editor-fields"></div><p id="editor-error" class="form-error" role="alert" hidden></p><div class="dialog-actions"><button type="button" class="button subtle" data-close>Abbrechen</button><button type="submit" class="button primary">Speichern</button></div></form></dialog>
 <dialog id="confirm-dialog" aria-labelledby="confirm-title"><form method="dialog"><h2 id="confirm-title">Wirklich löschen?</h2><p id="confirm-text"></p><div class="dialog-actions"><button class="button subtle" value="cancel">Abbrechen</button><button class="button danger" value="delete">Löschen</button></div></form></dialog>
 </body>

@@ -312,28 +312,27 @@ label textarea { min-height: 110px; resize: vertical; }
 .day .task-body { flex-basis: calc(100% - 58px); }
 .day .task-check { width: 48px; height: 48px; }
 .day .task-actions { flex-basis: 100%; justify-content: flex-end; }
-#screen[data-page="focus"] .focus-view { max-width: 1000px; min-height: min(660px, 70dvh); display: flex; flex-direction: column; justify-content: center; padding: clamp(24px, 4vw, 64px); }
+.focus-workspace { min-height: calc(100dvh - 140px); display: flex; flex-direction: column; }
+.focus-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 28px; }
+.focus-toolbar h1 { margin: 0; font-size: 18px; font-weight: 550; letter-spacing: 0; }
+.focus-toolbar .button { white-space: normal; }
+.focus-exit-hint { color: var(--muted); font-size: 14px; margin: 12px 0 0; }
+#screen[data-page="focus"] .focus-view { width: min(100%, 1100px); max-width: none; flex: 1; min-height: 0; margin: 0 auto; padding: clamp(24px, 5vw, 72px) 0; background: transparent; border: 0; display: flex; flex-direction: column; justify-content: center; }
 .focus-eyebrow { color: var(--muted); letter-spacing: .14em; font-size: 12px; font-weight: 650; margin-bottom: 12px; }
-.focus-view .timer { font-size: clamp(64px, 9vw, 136px); letter-spacing: -.045em; white-space: nowrap; }
-.immersive-launch { margin-top: 20px; align-self: center; }
-.immersive-open { overflow: hidden; }
-dialog.immersive-dialog { width: 100%; max-width: none; height: 100%; max-height: none; height: 100dvh; margin: 0; border: 0; border-radius: 0; box-shadow: none; padding: max(20px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); overflow-y: auto; background: var(--bg); }
-.immersive-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.immersive-header h2 { font-size: 18px; margin: 0; }
-.immersive-header .button { white-space: normal; }
-.immersive-exit-hint { color: var(--muted); font-size: 14px; margin: 12px 0 0; }
-.immersive-dialog .focus-view { width: min(100%, 1100px); max-width: none; min-height: calc(100dvh - 170px); margin: 0 auto; padding: clamp(24px, 5vw, 72px) 0; background: transparent; border: 0; display: flex; flex-direction: column; justify-content: center; }
-.immersive-dialog .timer { font-size: clamp(64px, 14vw, 200px); }
-.immersive-dialog .focus-view h2 { font-size: clamp(24px, 3vw, 44px); }
+.focus-view .timer { font-size: clamp(64px, 14vw, 200px); letter-spacing: -.045em; white-space: nowrap; }
+.focus-view h2 { font-size: clamp(24px, 3vw, 44px); }
 .focus-controls .button { white-space: normal; }
+.immersive-open .sidebar, .immersive-open .topbar, .immersive-open #pwa-notice { display: none; }
+.immersive-open .app-layout { display: block; }
+.immersive-open .app-layout main { padding: max(20px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); }
+.immersive-open .focus-workspace { min-height: calc(100dvh - 48px); }
+.immersive-open .focus-toolbar { padding-top: 0; }
 @media (max-width: 600px) {
-    #screen[data-page="focus"] .focus-view { min-height: 0; padding: 28px 18px; }
+    .focus-workspace { min-height: calc(100dvh - 230px); }
+    .focus-toolbar { align-items: flex-start; padding-top: 24px; }
+    .focus-toolbar h1 { font-size: 16px; padding-top: 10px; }
     .focus-controls { flex-direction: column; align-items: stretch; }
-    .focus-view .timer { font-size: clamp(48px, 14vw, 76px); }
+    .focus-view .timer { font-size: clamp(48px, 14vw, 84px); }
     .focus-view .intro { font-size: 14px; }
-    .immersive-header { align-items: flex-start; }
-    .immersive-header h2 { font-size: 16px; padding-top: 10px; }
-    dialog.immersive-dialog { padding-inline: 18px; }
-    .immersive-dialog .timer { font-size: clamp(48px, 14vw, 84px); }
-    .immersive-dialog .focus-view { min-height: calc(100dvh - 180px); }
+    .immersive-open .app-layout main { padding-inline: 18px; }
 }

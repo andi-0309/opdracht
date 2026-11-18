@@ -6,23 +6,24 @@ import vm from 'node:vm';
 const source = fs.readFileSync(new URL('../../public/app.js', import.meta.url), 'utf8');
 function app() {
     const nodes = new Map();
+    const events = {};
     function node(selector) {
         if (nodes.has(selector)) return nodes.get(selector);
         const element = {innerHTML:'', textContent:'', hidden:false, open:false, dataset:{}, content:'test-csrf', events:{},
-            classList:{add(){}, remove(){}, toggle(){}}, addEventListener(name, callback){this.events[name]=callback;},
+            attributes:{}, setAttribute(name,value){this.attributes[name]=value;}, classList:{values:new Set(), add(name){this.values.add(name);}, remove(name){this.values.delete(name);}, toggle(name,enabled){if(enabled)this.values.add(name);else this.values.delete(name);}}, addEventListener(name, callback){this.events[name]=callback;},
             focus(){}, matches(){return false;}, querySelector:node, querySelectorAll(){return [];},
             showModal(){this.open=true;}, close(){this.open=false; this.events.close?.();}};
         nodes.set(selector, element);
         return element;
     }
-    const timers = [{textContent:''}, {textContent:''}];
+    const timers = [{textContent:''}];
     let requests = 0;
     const context = vm.createContext({document:{querySelector:node, querySelectorAll(selector){return selector==='[data-focus-timer]'?timers:[];},
-        getElementById(id){return node('#'+id);}, addEventListener(){}, body:node('body'), activeElement:null},
+        getElementById(id){return node('#'+id);}, addEventListener(name,callback){events[name]=callback;}, body:node('body'), activeElement:null},
         window:{addEventListener(){}, isSecureContext:true}, navigator:{onLine:true}, location:{hash:''},
         fetch(){requests++;return new Promise(()=>{});}, setInterval(){}, console, Date});
     vm.runInContext(source, context);
-    return {run:code=>vm.runInContext(code, context), node, timers, requests:()=>requests};
+    return {run:code=>vm.runInContext(code, context), node, timers, events, requests:()=>requests};
 }
 
 test('palette offers named colors without a free picker or visible hex fields', () => {
@@ -33,27 +34,49 @@ test('palette offers named colors without a free picker or visible hex fields', 
     assert.doesNotMatch(html.replace(/<[^>]*>/g,''), /#[a-f0-9]{6}/i);
     assert.doesNotMatch(source, /type="color"/);
 });
-test('saved non-palette colors are preserved and invalid colors cannot inject markup', () => {
-    const ui=app(); assert.match(ui.run('colorChoices("#123ABC")'), /value="#123abc" checked/);
-    assert.match(ui.run('colorChoices("#123ABC")'), /Bisherige Farbe/);
-    assert.doesNotMatch(ui.run('colorChoices(' + JSON.stringify('" onfocus="evil') + ')'), /onfocus/);
+test('only the eight palette colors are offered, even for unexpected stored values', () => {
+    const ui=app();
+    for(const value of ['#123ABC','" onfocus="evil','#6289a6']) {
+        const html=ui.run('colorChoices('+JSON.stringify(value)+')');
+        assert.equal((html.match(/type="radio"/g)||[]).length,8);
+        assert.equal((html.match(/ checked/g)||[]).length,1);
+        assert.doesNotMatch(html,/Bisherige Farbe|onfocus/);
+    }
+    assert.match(ui.run('colorChoices("#123abc")'),/value="#789469" checked/);
 });
-test('immersive timer escapes titles and Escape never stops a running session', () => {
+test('fullscreen only hides chrome and Escape preserves the same timer, form and session', () => {
     const ui=app();
     ui.run('state={tasks:[{id:1,title:"<script>evil</script>",quest_id:null}],quests:[],focus:{id:9,task_id:1,started_at:new Date(Date.now()-65000).toISOString()}};selectedTaskId=1;');
-    const before=ui.requests(); ui.run('enterImmersive()');
-    assert.equal(ui.node('#focus-dialog').open,true);
-    assert.match(ui.node('#immersive-content').innerHTML,/&lt;script&gt;/);
-    assert.equal(ui.timers[0].textContent,'01:05'); assert.equal(ui.timers[1].textContent,'01:05');
-    let prevented=false;ui.node('#focus-dialog').events.cancel({preventDefault(){prevented=true;}});
-    assert.equal(prevented,true);assert.equal(ui.node('#focus-dialog').open,false);
+    const html=ui.run('focusScreen()');ui.node('#screen').innerHTML=html;
+    assert.match(html,/&lt;script&gt;/);
+    assert.equal((html.match(/data-focus-timer/g)||[]).length,1);
+    const before=ui.requests(),timer=ui.timers[0];
+    ui.run('updateTimer();setImmersive(true)');
+    assert.equal(ui.node('body').classList.values.has('immersive-open'),true);
+    assert.equal(ui.node('#focus-fullscreen').attributes['aria-pressed'],'true');
+    assert.equal(ui.node('#screen').innerHTML,html);
+    assert.equal(timer.textContent,'01:05');
+    let prevented=false;ui.events.keydown({key:'Escape',preventDefault(){prevented=true;}});
+    assert.equal(prevented,true);assert.equal(ui.node('body').classList.values.has('immersive-open'),false);
+    assert.equal(ui.node('#screen').innerHTML,html);assert.equal(ui.timers[0],timer);
     assert.equal(ui.run('state.focus.id'),9);assert.equal(ui.requests(),before);
-    assert.equal(ui.node('#immersive-content').innerHTML,'');
+    assert.equal(ui.node('#focus-fullscreen').attributes['aria-pressed'],'false');
 });
-test('idle immersive view has its own task selector and zero timer', () => {
-    const ui=app();ui.run('state={tasks:[{id:1,title:"Test"}],quests:[],focus:null};enterImmersive();');
-    assert.match(ui.node('#immersive-content').innerHTML,/id="immersive-focus-select"/);
+test('normal and fullscreen focus share the same task selector without a duplicate dialog', () => {
+    const ui=app();ui.run('state={tasks:[{id:1,title:"Test"}],quests:[],focus:null};');
+    const html=ui.run('focusScreen()');
+    assert.equal((html.match(/id="focus-select"/g)||[]).length,1);
+    ui.node('#focus-select').value='1';ui.run('setImmersive(true);setImmersive(false);updateTimer()');
+    assert.equal(ui.node('#focus-select').value,'1');
     assert.equal(ui.timers[0].textContent,'00:00');
+    const view=fs.readFileSync(new URL('../../resources/views/app.blade.php',import.meta.url),'utf8');
+    assert.doesNotMatch(view,/id="focus-dialog"/);
+});
+test('Escape in an open editor does not change fullscreen or timer state', () => {
+    const ui=app();ui.run('setImmersive(true)');ui.node('#editor').open=true;
+    let prevented=false;ui.events.keydown({key:'Escape',preventDefault(){prevented=true;}});
+    assert.equal(prevented,false);
+    assert.equal(ui.node('body').classList.values.has('immersive-open'),true);
 });
 test('theme follows system initially and on changes, ignoring stored preferences', () => {
     const code=fs.readFileSync(new URL('../../public/theme.js',import.meta.url),'utf8');

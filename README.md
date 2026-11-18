@@ -8,7 +8,7 @@ Eine kleine, selbst gehostete Laravel-Anwendung für Ziele, Tagesaufgaben und Fo
 - Tagesansicht, Wochenplanung, Ziele, Fokus-Timer und Wochenrückblick.
 - Hell-/Dunkeldarstellung folgt automatisch dem System, ohne manuellen Umschalter. Größere Texte und mindestens 48 px hohe Aktionsflächen erleichtern die Bedienung am Handy.
 - Desktopansichten nutzen die verfügbare Breite; insbesondere die Wochenplanung.
-- Fokus als Startansicht mit bildschirmfüllendem Timer; Verlassen oder Escape stoppt keine laufende Fokuszeit.
+- Fokus als Startansicht mit derselben großen Timer-Oberfläche im normalen und bildschirmfüllenden Modus. Vollbild blendet nur Navigation und Rahmenelemente aus; Verlassen oder Escape stoppt keine laufende Fokuszeit.
 - Benannte, abgestimmte Farbpalette für Quests und klare, lokal eingebundene SVG-Icons.
 - Lokale Anmeldung oder optional Authentik über OpenID Connect. Aufgaben, Ziele und Fokuszeiten gehören jeweils einem Benutzer.
 - Fokuszeiten auf dem Server: Ein laufender Timer bleibt bei Neuladen und Gerätewechsel erhalten.
