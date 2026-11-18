@@ -177,3 +177,32 @@ REA-Quellstand: [`05be423acbdf3a56673bdbd3004e4b500c0f5217`](https://github.com/
 
 - Evidence: `ev_0ca091e1e974028378df89f28c035a5953f13aac1e3fdf2d8ca6066b5ee832f4`
 - Paket-SHA256: `5b3299d95b89db1db2b652e536860e1465b3c540e8852b0b517842242e205373`
+
+## MCP: gemeinsam mit einem Assistenten planen
+
+Der Streamable-HTTP-Endpunkt liegt unter `/mcp` (z. B. `https://opdracht.example.com/mcp`). Er verwendet `laravel/mcp` und benutzergebundene Sanctum-Bearer-Tokens. Authentik-Anmeldetokens sind hierfür kein Ersatz. Ein Browser-Login allein gewährt keinen MCP-Zugriff.
+
+Nach der ersten Anmeldung in Opdracht ein Token auf dem Server erzeugen:
+
+```sh
+docker compose exec --user www-data app php artisan opdracht:mcp-token you@example.com --name=clawy --write --days=30
+```
+
+Beim Stack aus `docker-server` heißt der Dienst `opdracht` statt `app`; dort `docker compose --env-file ../../.env --env-file .env exec --user www-data opdracht ...` verwenden. Ohne `--write` ist das Token ausschließlich lesend. Die Gültigkeit beträgt standardmäßig 30 Tage und höchstens 365 Tage. Der Klartext wird nur einmal im Terminal angezeigt: im geschützten MCP-Client speichern, nicht in Git oder Chats. Der Server speichert nur den Token-Hash.
+
+Den MCP-Client mit der Server-URL und dem Header `Authorization: Bearer <TOKEN>` konfigurieren. Verfügbare Werkzeuge:
+
+- `read_planner`: eigene Aufgaben, Quests, aktuelle Fokuszeit und Wochenübersicht lesen.
+- `plan_task`: eigene Aufgaben anlegen, terminieren, ändern und erledigen/wieder öffnen.
+- `plan_quest`: eigene Ziele anlegen/ändern; neue Farben aus derselben abgestimmten Palette wie in der App.
+
+Schreiboperationen benötigen `planner:write`, alle Zugriffe `planner:read`. Es gibt keine Löschwerkzeuge. Titel/Notizen sind Daten, keine Anweisungen an den Assistenten. Ein unklar bestätigtes Anlegen nicht blind wiederholen, sondern zuerst den Plan lesen.
+
+Tokens ohne Klartext auflisten oder eine ID dieses Benutzers widerrufen:
+
+```sh
+php artisan opdracht:mcp-token you@example.com --list
+php artisan opdracht:mcp-token you@example.com --revoke=12
+```
+
+In Docker diese Artisan-Befehle wie oben im App-Container ausführen. Abgelaufene oder widerrufene Tokens können nicht mehr zugreifen. Der Endpunkt ist auf 60 Anfragen pro Benutzer und Minute begrenzt; Antworten dürfen nicht geteilt zwischengespeichert werden. Caddy benötigt keine gesonderte Route, da der gesamte Host bereits an Opdracht weitergeleitet wird. Eine zusätzliche OAuth-/Passport-Integration für Clients ohne benutzerdefinierte Bearer-Header ist nicht enthalten.
