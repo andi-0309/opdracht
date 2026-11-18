@@ -10,8 +10,8 @@
     <link rel="icon" href="/icons/icon.svg?v=5" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=5">
     <script src="/theme.js?v=6"></script>
-    <link rel="stylesheet" href="/app.css?v=7">
-    <script src="/app.js?v=7" defer></script>
+    <link rel="stylesheet" href="/app.css?v=8">
+    <script src="/app.js?v=8" defer></script>
     <title>Opdracht</title>
 </head>
 <body>
@@ -31,6 +31,7 @@
     <main id="content" tabindex="-1">
         <div class="topbar"><span id="date-label">Opdracht</span><div class="topbar-actions"><button id="install" class="text-button" hidden>Installieren ↗</button><span class="connection"><i></i><span id="connection-text">Verbunden</span></span><form class="mobile-logout" action="/logout" method="post">@csrf<button class="icon-button" type="submit" aria-label="Abmelden" title="Abmelden"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/icons/ui.svg?v=6#log-out"></use></svg></button></form></div></div>
         <div id="notice" class="notice" role="alert" hidden></div><div id="pwa-notice" class="notice" role="status" hidden></div>
+        <p id="reorder-help" class="sr-only">Am Griff ziehen, um innerhalb dieser Liste zu sortieren. Mit der Tastatur: Griff fokussieren und Pfeil nach oben oder unten drücken.</p><p id="reorder-status" class="sr-only" role="status" aria-live="polite"></p>
         <div id="screen"><div class="empty"><div class="empty-symbol">◌</div><p>Aufgaben werden geladen …</p></div></div>
     </main>
 </div>

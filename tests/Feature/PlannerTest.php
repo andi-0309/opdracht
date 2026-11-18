@@ -13,10 +13,49 @@ class PlannerTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
+    public function test_order_is_persisted_and_new_tasks_are_appended(): void
+    {
+        $user = User::factory()->create();
+        $a = Task::factory()->create(['user_id' => $user->id, 'position' => 1]);
+        $b = Task::factory()->create(['user_id' => $user->id, 'position' => 2]);
+        $c = Task::factory()->create(['user_id' => $user->id, 'position' => 3]);
+        $this->actingAs($user)->postJson('/api/tasks/reorder', ['task_ids' => [$c->id, $a->id, $b->id]])->assertOk();
+        $this->getJson('/api/state')->assertJsonPath('tasks.0.id', $c->id)->assertJsonPath('tasks.1.id', $a->id)->assertJsonPath('tasks.2.id', $b->id);
+        $id = $this->postJson('/api/tasks', ['title' => 'New'])->assertCreated()->json('id');
+        $this->getJson('/api/state')->assertJsonPath('tasks.3.id', $id);
+        $this->assertDatabaseHas('tasks', ['id' => $c->id, 'position' => 1]);
+    }
+
+    public function test_reorder_rejects_foreign_unknown_and_duplicate_tasks_atomically(): void
+    {
+        $user = User::factory()->create();
+        $task = Task::factory()->create(['user_id' => $user->id, 'position' => 9]);
+        $foreign = Task::factory()->create(['position' => 8]);
+        $this->actingAs($user);
+        foreach ([[$task->id, $foreign->id], [$task->id, 999999], [$task->id, $task->id], [], ['invalid']] as $ids) {
+            $this->postJson('/api/tasks/reorder', ['task_ids' => $ids])->assertUnprocessable();
+        }
+        $this->assertDatabaseHas('tasks', ['id' => $task->id, 'position' => 9]);
+        $this->assertDatabaseHas('tasks', ['id' => $foreign->id, 'position' => 8]);
+    }
+
+    public function test_reorder_preserves_concurrently_added_tasks_and_running_focus(): void
+    {
+        $user = User::factory()->create();
+        $a = Task::factory()->create(['user_id' => $user->id, 'position' => 1, 'scheduled_for' => '2026-11-18']);
+        $b = Task::factory()->create(['user_id' => $user->id, 'position' => 2]);
+        $new = Task::factory()->create(['user_id' => $user->id, 'position' => 3]);
+        $session = $this->actingAs($user)->postJson('/api/focus', ['task_id' => $a->id])->assertCreated()->json('id');
+        $this->postJson('/api/tasks/reorder', ['task_ids' => [$b->id, $a->id]])->assertOk();
+        $this->getJson('/api/state')->assertJsonPath('tasks.0.id', $b->id)->assertJsonPath('tasks.1.id', $a->id)->assertJsonPath('tasks.2.id', $new->id)->assertJsonPath('focus.id', $session);
+        $this->assertDatabaseHas('tasks', ['id' => $a->id, 'scheduled_for' => '2026-11-18']);
+    }
+
     public function test_guest_cannot_read_or_write_planner(): void
     {
         $this->getJson('/api/state')->assertUnauthorized();
         $this->postJson('/api/tasks', ['title' => 'Test'])->assertUnauthorized();
+        $this->postJson('/api/tasks/reorder', ['task_ids' => [1]])->assertUnauthorized();
         $this->assertDatabaseCount('tasks', 0);
     }
 

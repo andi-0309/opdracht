@@ -21,7 +21,7 @@ class PlannerController extends Controller
         $sessions = FocusSession::where('user_id', $uid)->where(fn ($q) => $q->whereNull('ended_at')->orWhere('ended_at', '>=', $start))->get();
         $seconds = $sessions->sum(fn ($s) => max(0, $s->started_at->max($start)->diffInSeconds($s->ended_at ?? $now, false)));
         $totals = FocusSession::where('user_id', $uid)->whereNotNull('ended_at')->selectRaw('task_id, SUM(seconds) as total')->groupBy('task_id')->pluck('total', 'task_id');
-        $tasks = Task::where('user_id', $uid)->orderBy('id')->get()->map(function (Task $task) use ($totals) {
+        $tasks = Task::where('user_id', $uid)->orderBy('position')->orderBy('id')->get()->map(function (Task $task) use ($totals) {
             return [...$task->only(['id', 'quest_id', 'title', 'notes', 'completed_at']), 'scheduled_for' => $task->scheduled_for?->format('Y-m-d'), 'focus_seconds' => (int) ($totals[$task->id] ?? 0)];
         });
 
@@ -85,9 +85,32 @@ class PlannerController extends Controller
     {
         $data = $this->taskData($request);
         unset($data['completed']);
-        $task = Task::create([...$data, 'user_id' => $request->user()->id]);
+        $task = DB::transaction(function () use ($data, $request) {
+            $position = (int) Task::where('user_id', $request->user()->id)->max('position') + 1;
+
+            return Task::create([...$data, 'user_id' => $request->user()->id, 'position' => $position]);
+        });
 
         return response()->json(['id' => $task->id], 201);
+    }
+
+    public function reorderTasks(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'task_ids' => ['required', 'array', 'min:1', 'max:10000'],
+            'task_ids.*' => ['required', 'integer', 'distinct'],
+        ]);
+        DB::transaction(function () use ($request, $data) {
+            $tasks = Task::where('user_id', $request->user()->id)->orderBy('position')->orderBy('id')->lockForUpdate()->get();
+            $ids = array_map('intval', $data['task_ids']);
+            abort_unless(count(array_intersect($ids, $tasks->modelKeys())) === count($ids), 422, 'Die Aufgabenliste ist nicht mehr aktuell. Bitte lade sie erneut.');
+            $ordered = [...$ids, ...array_values(array_diff($tasks->modelKeys(), $ids))];
+            foreach ($ordered as $position => $id) {
+                Task::where('user_id', $request->user()->id)->whereKey($id)->update(['position' => $position + 1]);
+            }
+        });
+
+        return response()->json(['ok' => true]);
     }
 
     public function updateTask(Request $request, int $id): JsonResponse

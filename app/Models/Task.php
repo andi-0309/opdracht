@@ -9,7 +9,7 @@ class Task extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['user_id', 'quest_id', 'title', 'notes', 'scheduled_for', 'completed_at'];
+    protected $fillable = ['user_id', 'quest_id', 'title', 'notes', 'scheduled_for', 'completed_at', 'position'];
 
     protected function casts(): array
     {

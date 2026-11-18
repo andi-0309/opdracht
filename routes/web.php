@@ -20,6 +20,7 @@ Route::middleware('auth')->group(function () {
         Route::patch('/quests/{id}', 'updateQuest');
         Route::delete('/quests/{id}', 'deleteQuest');
         Route::post('/tasks', 'storeTask');
+        Route::post('/tasks/reorder', 'reorderTasks');
         Route::patch('/tasks/{id}', 'updateTask');
         Route::delete('/tasks/{id}', 'deleteTask');
         Route::post('/focus', 'startFocus');

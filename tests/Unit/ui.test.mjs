@@ -19,7 +19,7 @@ function app() {
     const timers = [{textContent:''}];
     let requests = 0;
     const context = vm.createContext({document:{querySelector:node, querySelectorAll(selector){return selector==='[data-focus-timer]'?timers:[];},
-        getElementById(id){return node('#'+id);}, addEventListener(name,callback){events[name]=callback;}, body:node('body'), activeElement:null},
+        getElementById(id){return node('#'+id);}, addEventListener(name,callback){const previous=events[name];events[name]=event=>{previous?.(event);return callback(event);};}, body:node('body'), activeElement:null},
         window:{addEventListener(){}, isSecureContext:true}, navigator:{onLine:true}, location:{hash:''},
         fetch(){requests++;return new Promise(()=>{});}, setInterval(){}, console, Date});
     vm.runInContext(source, context);
@@ -96,4 +96,64 @@ test('all static SVG references exist and both pages omit the theme switcher', (
     for (const match of source.matchAll(/icon\('([a-z-]+)'\)/g)) assert.ok(ids.has(match[1]),match[1]);
     assert.ok(ids.has('timer')&&ids.has('play'));
     assert.doesNotMatch(view+login,/data-theme-select/);
+});
+
+test('focus defaults to saved first incomplete task, preserves explicit choice and running focus', () => {
+    const ui=app();
+    ui.run('state={tasks:[{id:9,completed_at:"done"},{id:3,title:"First"},{id:1,title:"Second"}],quests:[]};');
+    assert.equal(ui.run('focusTask().id'),3);
+    assert.match(ui.run('focusPanel()'),/value="3" selected/);
+    ui.run('selectedTaskId=1;');assert.equal(ui.run('focusTask().id'),1);
+    ui.run('state.focus={id:8,task_id:3};');assert.equal(ui.run('focusTask().id'),3);
+    ui.run('state.tasks.reverse();');assert.equal(ui.run('focusTask().id'),3);
+    ui.run('state.focus=null;selectedTaskId=999;');assert.equal(ui.run('focusTask().id'),1);
+});
+test('filtered reorder retains all hidden slots, completed tasks and other dates', () => {
+    const ui=app();
+    assert.deepEqual(Array.from(ui.run('reorderedTaskIds([1,2,3,4,5],[1,3,5],1,5)')),[3,2,5,4,1]);
+    assert.deepEqual(Array.from(ui.run('reorderedTaskIds([1,2,3,4,5],[1,3,5],5,1)')),[5,2,1,4,3]);
+    assert.deepEqual(Array.from(ui.run('reorderedTaskIds([1,2,3],[1,3],1,2)')),[1,2,3]);
+});
+test('reorder posts every task ID, refreshes authoritative order and never mutates focus', async () => {
+    const ui=app();
+    ui.run('state={tasks:[{id:1},{id:2,completed_at:"done"},{id:3}],focus:{id:7,task_id:1}};');
+    ui.run('calls=[];api=async (path,method,body)=>{calls.push({path,method,body});};refresh=async()=>true;');
+    await ui.run('persistTaskOrder([1,3],3,1)');
+    assert.equal(ui.run('calls[0].path'),'/api/tasks/reorder');
+    assert.equal(ui.run('calls[0].method'),'POST');
+    assert.deepEqual(Array.from(ui.run('calls[0].body.task_ids')),[3,2,1]);
+    assert.equal(ui.run('state.focus.id'),7);
+    assert.equal(ui.run('state.tasks[0].id'),1);
+});
+test('failed reorder leaves original order and exposes actionable error', async () => {
+    const ui=app();ui.run('state={tasks:[{id:1},{id:2}]};api=async()=>{throw new Error("Nicht gespeichert");};');
+    await assert.rejects(ui.run('persistTaskOrder([1,2],1,2)'),/Nicht gespeichert/);
+    assert.equal(ui.run('state.tasks[0].id'),1);
+    assert.equal(ui.node('#notice').textContent,'Nicht gespeichert');
+    assert.equal(ui.run('mutationPending'),false);
+});
+test('refresh ignores stale responses and cannot redraw an active drag', async () => {
+    const ui=app();ui.run('state={tasks:[{id:1}]};api=()=>new Promise(resolve=>{resolveState=resolve;});');
+    const pending=ui.run('refresh()');ui.run('++refreshSequence;resolveState({tasks:[{id:2}]});');await pending;
+    assert.equal(ui.run('state.tasks[0].id'),1);
+    ui.run('taskDrag={};');const count=ui.requests();await ui.run('refresh(true)');assert.equal(ui.requests(),count);
+});
+test('completion remains an accessible checkbox with a compact square check icon', () => {
+    const ui=app();ui.run('state={quests:[],focus:null};');
+    const html=ui.run('taskRow({id:1,title:"Test",completed_at:null})');
+    assert.match(html,/role="checkbox" aria-checked="false"/);
+    assert.match(html,/task-check-box.*ui.svg\?v=6#check/);
+    assert.match(html,/aria-keyshortcuts="ArrowUp ArrowDown"/);
+    const css=fs.readFileSync(new URL('../../public/app.css',import.meta.url),'utf8');
+    assert.match(css,/task-check-box { width: 24px; height: 24px;.*border-radius: 4px/);
+    assert.match(css,/touch-action: none/);
+});
+test('mobile focus uses dynamic viewport and safe areas in both orientations without body clipping', () => {
+    const css=fs.readFileSync(new URL('../../public/app.css',import.meta.url),'utf8');
+    assert.match(css,/focus-page \.app-layout main { height: 100vh; height: 100dvh/);
+    assert.match(css,/orientation: landscape/);
+    assert.match(css,/env\(safe-area-inset-left\)/);
+    assert.doesNotMatch(css,/body[^{}]*{[^}]*overflow:\s*hidden/);
+    const sw=fs.readFileSync(new URL('../../public/sw.js',import.meta.url),'utf8');
+    assert.match(sw,/opdracht-static-v8/);assert.match(sw,/app.js\?v=8/);assert.match(sw,/ui.svg\?v=6/);
 });
