@@ -21,7 +21,7 @@ function app() {
     const context = vm.createContext({document:{querySelector:node, querySelectorAll(selector){return selector==='[data-focus-timer]'?timers:[];},
         createElement(tag){return node('created-'+tag);}, elementFromPoint(){return node('hit');}, getElementById(id){return node('#'+id);}, addEventListener(name,callback){const previous=events[name];events[name]=event=>{previous?.(event);return callback(event);};}, body:node('body'), activeElement:null},
         requestAnimationFrame(){return 42;}, cancelAnimationFrame(id){node('raf').cancelled=id;}, window:{innerWidth:1200,innerHeight:800,scrollBy(){},addEventListener(){}, isSecureContext:true}, navigator:{onLine:true}, location:{hash:''},
-        fetch(){requests++;return new Promise(()=>{});}, setInterval(){}, console, Date});
+        fetch(){requests++;return new Promise(()=>{});}, setTimeout(callback){node("hold").callback=callback;return 7;}, clearTimeout(id){if(id===7)node("hold").callback=null;}, setInterval(){}, console, Date});
     vm.runInContext(source, context);
     return {run:code=>vm.runInContext(code, context), node, timers, events, requests:()=>requests};
 }
@@ -146,7 +146,9 @@ test('completion remains an accessible checkbox with a compact square check icon
     assert.match(html,/aria-keyshortcuts="ArrowUp ArrowDown"/);
     const css=fs.readFileSync(new URL('../../public/app.css',import.meta.url),'utf8');
     assert.match(css,/task-check-box { width: 24px; height: 24px;.*border-radius: 4px/);
-    assert.match(css,/touch-action: none/);
+    assert.match(css,/touch-action: auto/);
+    assert.doesNotMatch(html,/task-handle|reorder-task/);
+    assert.match(html,/data-task-id="1" tabindex="0"/);
 });
 test('mobile focus uses dynamic viewport and safe areas in both orientations without body clipping', () => {
     const css=fs.readFileSync(new URL('../../public/app.css',import.meta.url),'utf8');
@@ -155,28 +157,29 @@ test('mobile focus uses dynamic viewport and safe areas in both orientations wit
     assert.match(css,/env\(safe-area-inset-left\)/);
     assert.doesNotMatch(css,/body[^{}]*{[^}]*overflow:\s*hidden/);
     const sw=fs.readFileSync(new URL('../../public/sw.js',import.meta.url),'utf8');
-    assert.match(sw,/opdracht-static-v9/);assert.match(sw,/app.js\?v=9/);assert.match(sw,/ui.svg\?v=6/);
+    assert.match(sw,/opdracht-static-v10/);assert.match(sw,/app.js\?v=10/);assert.match(sw,/ui.svg\?v=6/);
 });
 
 function dragFixture() {
-    const ui=app(),row=ui.node('row'),list=ui.node('list'),handle=ui.node('handle'),zone=ui.node('zone');
-    row.dataset.taskId='1';handle.dataset.id='1';zone.dataset.dropDate='2026-11-19';
-    row.closest=selector=>selector==='.task-list'?list:null;
-    handle.closest=selector=>selector==='[data-task-id]'?row:selector==='.task-handle'?handle:selector==='.task-list'?list:null;
-    handle.setPointerCapture=()=>{handle.captured=true;};handle.hasPointerCapture=()=>handle.captured;handle.releasePointerCapture=()=>{handle.captured=false;};
+    const ui=app(),row=ui.node('row'),list=ui.node('list'),title=ui.node('title'),zone=ui.node('zone');
+    row.dataset.taskId='1';title.dataset.id='1';zone.dataset.dropDate='2026-11-19';
+    row.closest=selector=>selector==='.task-list'?list:selector==='[data-task-id]'?row:null;
+    title.closest=selector=>selector==='[data-task-id]'?row:selector==='button, input, select, textarea, a, [contenteditable]'||selector==='[data-action]'?title:null;
+    title.dataset.action='edit-task';title.matches=selector=>selector==='.task-title';
+    row.setPointerCapture=()=>{row.captured=true;};row.hasPointerCapture=()=>row.captured;row.releasePointerCapture=()=>{row.captured=false;};
     list.querySelectorAll=()=>[row];zone.querySelectorAll=()=>[];zone.querySelector=()=>null;
     zone.querySelector=selector=>selector==='.empty-small'?ui.node('empty'):null;
     ui.node('hit').closest=selector=>selector==='[data-drop-date]'?zone:null;
     ui.node('#screen').querySelectorAll=()=>[zone];ui.node('#screen').querySelector=()=>null;
     ui.run('state={tasks:[{id:1,scheduled_for:"2026-11-18"},{id:2,scheduled_for:null}],quests:[],focus:{id:9,task_id:1,started_at:new Date(Date.now()-65000).toISOString()}};calls=[];api=async(path,method,body)=>calls.push({path,method,body});refresh=async()=>true;');
-    const event=(x=120,y=120,pointerType='mouse')=>({target:handle,button:0,isPrimary:true,pointerId:5,clientX:x,clientY:y,pointerType,preventDefault(){}});
-    return {ui,row,list,handle,zone,event};
+    const event=(x=120,y=120,pointerType='mouse')=>({target:title,button:0,isPrimary:true,pointerId:5,clientX:x,clientY:y,pointerType,preventDefault(){}});
+    return {ui,row,list,title,zone,event};
 }
 test('floating clone is exactly 50%, ignores hit testing, keeps grab offset and cleans every cancel path', async()=>{
     const css=fs.readFileSync(new URL('../../public/app.css',import.meta.url),'utf8');
     assert.match(css,/task\.task-drag-ghost \{[^}]*position: fixed;[^}]*opacity: \.5;[^}]*pointer-events: none;/);
     for(const cancel of ['pointercancel','lostpointercapture','Escape']) {
-        const {ui,row,handle,zone,event}=dragFixture();
+        const {ui,row,title,zone,event}=dragFixture();
         ui.events.pointerdown(event());ui.events.pointermove(event(123,122));assert.equal(ui.run('taskDrag.active'),false);
         ui.events.pointermove(event(420,220,'touch'));
         assert.equal(ui.node('clone').style.transform,'translate3d(400px,200px,0)');
@@ -185,14 +188,14 @@ test('floating clone is exactly 50%, ignores hit testing, keeps grab offset and 
         assert.equal(ui.node('empty').beforeChild,ui.node('created-li'));
         if(cancel==='Escape') await ui.events.keydown({key:'Escape'});else ui.events[cancel](event());
         assert.equal(ui.run('taskDrag'),null);assert.equal(ui.node('clone').removed,true);assert.equal(ui.node('created-li').removed,true);
-        assert.equal(ui.node('raf').cancelled,42);assert.equal(handle.captured,false);assert.equal(row.classList.values.has('drag-placeholder'),false);
+        assert.equal(ui.node('raf').cancelled,42);assert.equal(row.captured,false);assert.equal(row.classList.values.has('drag-placeholder'),false);
         assert.equal(zone.classList.values.has('drop-day-active'),false);assert.equal(ui.run('calls.length'),0);
         assert.equal(ui.run('state.focus.id'),9);ui.run('updateTimer()');assert.equal(ui.timers[0].textContent,'01:05');
     }
 });
 test('pointer drop on empty other date posts date and all IDs atomically for mouse and touch',async()=>{
     for(const pointerType of ['mouse','touch']) {
-        const {ui,event}=dragFixture();ui.events.pointerdown(event(120,120,pointerType));ui.events.pointermove(event(420,220,pointerType));
+        const {ui,event}=dragFixture();ui.events.pointerdown(event(120,120,pointerType));if(pointerType==='touch')ui.node('hold').callback();ui.events.pointermove(event(420,220,pointerType));
         await ui.events.pointerup(event(420,220,pointerType));
         assert.equal(ui.run('calls.length'),1);assert.equal(ui.run('calls[0].method'),'POST');assert.equal(ui.run('calls[0].path'),'/api/tasks/reorder');
         assert.deepEqual(JSON.parse(ui.run('JSON.stringify(calls[0].body)')),{task_ids:[2,1],moved_task_id:1,scheduled_for:'2026-11-19'});
@@ -229,4 +232,77 @@ test('week has seven dated drop zones even empty; today and inbox are explicit b
     assert.match(ui.run('taskSection("Heute",[],"Leer","2026-11-18")'),/data-drop-date="2026-11-18"/);
     assert.match(ui.run('taskSection("Inbox",[],"Leer",null)'),/data-drop-date=""/);
     assert.doesNotMatch(ui.run('taskSection("Überfällig",[],"Leer")'),/data-drop-date/);
+});
+
+test('whole card blank/body/meta/title initiate drag while a plain title click still edits',async()=>{
+    for(const targetName of ['row','body','meta','title']) {
+        const {ui,row,title,event}=dragFixture();
+        const target=targetName==='row'?row:targetName==='title'?title:ui.node(targetName);
+        if(target!==row&&target!==title) target.closest=selector=>selector==='[data-task-id]'?row:null;
+        ui.events.pointerdown({...event(),target});
+        assert.equal(ui.run('taskDrag.active'),false);assert.equal(row.captured,undefined);
+        ui.events.pointermove(event(140,150));assert.equal(ui.run('taskDrag.active'),true);
+        ui.events.pointercancel(event());
+    }
+    for(const pointerType of ['mouse','touch']) {
+        const {ui,title,event}=dragFixture();
+        ui.events.pointerdown(event(120,120,pointerType));
+        ui.events.pointermove(event(122,121,pointerType));await ui.events.pointerup(event(122,121,pointerType));
+        await ui.events.click({target:title,detail:1});assert.equal(ui.node('#editor').open,true);
+        assert.equal(ui.run('calls.length'),0);
+    }
+});
+test('checkbox focus and delete controls never start drag, including nested icon targets',async()=>{
+    for(const action of ['toggle-task','focus-task','delete-task']) {
+        const {ui,row,event}=dragFixture(),button=ui.node('control'),icon=ui.node('control-icon');
+        button.dataset={id:'1',action};button.closest=selector=>selector==='[data-action]'?button:null;
+        icon.closest=selector=>selector==='[data-task-id]'?row:selector==='button, input, select, textarea, a, [contenteditable]'||selector==='[data-action]'?button:null;
+        ui.events.pointerdown({...event(),target:icon});ui.events.pointermove(event(400,200));
+        assert.equal(ui.run('taskDrag'),null);
+        const clicked=ui.events.click({target:icon,detail:1});
+        if(action==='delete-task') {assert.equal(ui.node('#confirm-dialog').open,true);ui.node('#confirm-dialog').close();}
+        await clicked;
+        if(action==='toggle-task')assert.equal(ui.run('calls[0].body.completed'),true);
+        if(action==='focus-task')assert.equal(ui.run('selectedTaskId'),1);
+    }
+});
+test('real completed cancelled and outside drags suppress trailing edit but not next deliberate click',async()=>{
+    for(const end of ['drop','pointercancel','lostpointercapture','Escape','outside']) {
+        const {ui,event,title}=dragFixture();ui.events.pointerdown(event());ui.events.pointermove(event(420,220));
+        if(end==='Escape')await ui.events.keydown({key:'Escape'});
+        else if(end==='outside'){ui.node('hit').closest=()=>null;await ui.events.pointerup(event(900,600));}
+        else if(end==='drop')await ui.events.pointerup(event(420,220));
+        else ui.events[end](event());
+        let prevented=false;
+        await ui.events.click({target:title,detail:1,preventDefault(){prevented=true;},stopImmediatePropagation(){}});
+        assert.equal(prevented,true);assert.equal(ui.node('#editor').open,false);
+        ui.events.pointerdown(event());await ui.events.pointerup(event());await ui.events.click({target:title,detail:1});
+        assert.equal(ui.node('#editor').open,true);
+    }
+});
+test('touch swipes scroll in both axes; only hold then movement drags and blocks native pan',()=>{
+    for(const [x,y] of [[200,120],[120,200]]) {
+        const {ui,event}=dragFixture();let prevented=false;
+        ui.events.pointerdown(event(120,120,'touch'));
+        ui.events.touchmove({cancelable:true,preventDefault(){prevented=true;}});assert.equal(prevented,false);
+        ui.events.pointermove(event(x,y,'touch'));assert.equal(ui.run('taskDrag'),null);
+        assert.equal(ui.node('hold').callback,null);
+    }
+    const {ui,event}=dragFixture();ui.events.pointerdown(event(120,120,'touch'));ui.node('hold').callback();
+    assert.equal(ui.run('taskDrag.active'),false);
+    let prevented=false;ui.events.touchmove({cancelable:true,preventDefault(){prevented=true;}});assert.equal(prevented,true);
+    ui.events.pointermove(event(150,140,'touch'));assert.equal(ui.run('taskDrag.active'),true);
+    ui.events.pointercancel(event());
+});
+test('row keyboard reorders in both directions and ignores arrows bubbling from child controls',async()=>{
+    for(const key of ['ArrowUp','ArrowDown']) {
+        const {ui,row,list,title}=dragFixture(),other=ui.node('other');other.dataset.taskId='2';
+        list.querySelectorAll=()=>key==='ArrowDown'?[row,other]:[other,row];
+        if(key==='ArrowUp')ui.run('state.tasks.reverse();');let prevented=false;
+        await ui.events.keydown({key,target:title,preventDefault(){prevented=true;}});
+        assert.equal(prevented,false);assert.equal(ui.run('calls.length'),0);
+        await ui.events.keydown({key,target:row,preventDefault(){prevented=true;}});
+        assert.equal(prevented,true);assert.equal(ui.run('calls.length'),1);
+        assert.deepEqual(Array.from(ui.run('calls[0].body.task_ids')),key==='ArrowDown'?[2,1]:[1,2]);
+    }
 });

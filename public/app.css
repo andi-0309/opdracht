@@ -128,14 +128,14 @@ details.section > summary { cursor: pointer; font-size: 20px; font-weight: 550; 
 .task-check-box .ui-icon { width: 18px; height: 18px; opacity: 0; }
 .task.done .task-check-box { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
 .task.done .task-check-box .ui-icon { opacity: 1; }
-.task-handle { width: 28px; min-width: 28px; height: 44px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--muted); font-size: 23px; cursor: grab; touch-action: none; user-select: none; }
-.task-handle:hover { background: var(--hover); }
+.task { cursor: grab; touch-action: auto; -webkit-touch-callout: none; user-select: none; }
+.task:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .task.drag-placeholder { outline: 1px dashed var(--accent); outline-offset: -1px; border-radius: 8px; background: var(--hover); }
 .task.drag-placeholder > * { visibility: hidden; }
 .task-drag-active, .task-drag-active * { cursor: grabbing !important; user-select: none; }
 .task.task-drag-ghost { position: fixed; top: 0; left: 0; margin: 0; z-index: 10000; opacity: .5; pointer-events: none; background: var(--panel); border-radius: 8px; box-shadow: 0 8px 24px #0003; box-sizing: border-box; will-change: transform; }
 .task.task-drag-compact { align-items: flex-start; gap: 10px; flex-wrap: wrap; padding: 12px 0; }
-.task-drag-compact .task-body { flex-basis: calc(100% - 84px); }
+.task-drag-compact .task-body { flex-basis: calc(100% - 46px); }
 .task-drag-compact .task-title { font-size: 17px; }
 .task-drag-compact .task-meta { font-size: 14px; }
 .task-drag-compact .task-check { width: 36px; height: 44px; }
@@ -329,7 +329,7 @@ label textarea { min-height: 110px; resize: vertical; }
 }
 .week-grid:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .day { min-width: 0; padding-inline: 12px; }
-.day .task-body { flex-basis: calc(100% - 84px); }
+.day .task-body { flex-basis: calc(100% - 46px); }
 .day .task-check { width: 36px; height: 44px; }
 .day .task-actions { flex-basis: 100%; justify-content: flex-end; }
 .focus-workspace { min-height: calc(100dvh - 140px); display: flex; flex-direction: column; }

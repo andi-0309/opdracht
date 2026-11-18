@@ -17,6 +17,7 @@ let mutationPending = false;
 let serverClockOffset = 0;
 let immersive = false;
 let taskDrag = null;
+let suppressTaskClickUntil = 0;
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function icon(name) {
     const id=/^[a-z-]+$/.test(name) ? name : 'target';
@@ -104,7 +105,7 @@ function stats() {
 }
 function taskRow(task, compact = false) {
     const running = state.focus?.task_id === task.id;
-    return `<li class="task ${task.completed_at ? 'done' : ''}" data-task-id="${task.id}"><button class="task-handle" data-action="reorder-task" data-id="${task.id}" aria-label="${escapeHtml(task.title)} verschieben" aria-describedby="reorder-help" aria-keyshortcuts="ArrowUp ArrowDown" title="Ziehen oder mit Pfeiltasten verschieben"><span aria-hidden="true">⠿</span></button><button class="task-check" role="checkbox" aria-checked="${Boolean(task.completed_at)}" aria-label="${escapeHtml(task.completed_at ? 'Wieder öffnen: ' : 'Erledigen: ')}${escapeHtml(task.title)}" data-action="toggle-task" data-id="${task.id}"><span class="task-check-box">${icon('check')}</span></button><div class="task-body"><button class="task-title" data-action="edit-task" data-id="${task.id}">${escapeHtml(task.title)}</button><div class="task-meta">${tag(taskQuest(task))}${!compact && task.scheduled_for && dateValue(task.scheduled_for) !== state.today ? `<span>${dayLabel(task.scheduled_for)}</span>` : ''}${task.focus_seconds ? `<span>${duration(task.focus_seconds)}</span>` : ''}</div></div><div class="task-actions">${!task.completed_at ? `<button class="icon-button" data-action="focus-task" data-id="${task.id}" aria-label="Fokus für ${escapeHtml(task.title)}" title="Fokus">${icon(running ? 'timer' : 'play')}</button>` : ''}<button class="icon-button delete-task" data-action="delete-task" data-id="${task.id}" aria-label="${escapeHtml(task.title)} löschen" title="Löschen">${icon('trash')}</button></div></li>`;
+    return `<li class="task ${task.completed_at ? 'done' : ''}" data-task-id="${task.id}" tabindex="0" aria-label="${escapeHtml(task.title)} verschieben" aria-describedby="reorder-help" aria-keyshortcuts="ArrowUp ArrowDown"><button class="task-check" role="checkbox" aria-checked="${Boolean(task.completed_at)}" aria-label="${escapeHtml(task.completed_at ? 'Wieder öffnen: ' : 'Erledigen: ')}${escapeHtml(task.title)}" data-action="toggle-task" data-id="${task.id}"><span class="task-check-box">${icon('check')}</span></button><div class="task-body"><button class="task-title" data-action="edit-task" data-id="${task.id}">${escapeHtml(task.title)}</button><div class="task-meta">${tag(taskQuest(task))}${!compact && task.scheduled_for && dateValue(task.scheduled_for) !== state.today ? `<span>${dayLabel(task.scheduled_for)}</span>` : ''}${task.focus_seconds ? `<span>${duration(task.focus_seconds)}</span>` : ''}</div></div><div class="task-actions">${!task.completed_at ? `<button class="icon-button" data-action="focus-task" data-id="${task.id}" aria-label="Fokus für ${escapeHtml(task.title)}" title="Fokus">${icon(running ? 'timer' : 'play')}</button>` : ''}<button class="icon-button delete-task" data-action="delete-task" data-id="${task.id}" aria-label="${escapeHtml(task.title)} löschen" title="Löschen">${icon('trash')}</button></div></li>`;
 }
 function taskSection(title, tasks, emptyText, addDate) {
     return `<section class="section" ${addDate !== undefined ? `data-drop-date="${addDate || ''}"` : ''}><div class="section-heading"><h2>${title}<span class="count">${tasks.length}</span></h2></div>${tasks.length ? `<ul class="task-list">${tasks.map(t => taskRow(t)).join('')}</ul>` : `<p class="empty-small">${emptyText}</p>`}${addDate !== undefined ? `<form class="quick-add" data-date="${addDate || ''}"><input name="title" aria-label="Neue Aufgabe für ${title}" placeholder="Neue Aufgabe" maxlength="200" required autocomplete="off"><button class="button subtle" type="submit" aria-label="Aufgabe hinzufügen">+</button></form>` : ''}</section>`;
@@ -121,7 +122,7 @@ function weekScreen() {
     const start = weekStart();
     const end = new Date(start); end.setDate(end.getDate()+6);
     const days = Array.from({length:7},(_,i) => {const d=new Date(start); d.setDate(d.getDate()+i); return d;});
-    return header('Woche', `<div class="week-nav"><button class="icon-button" data-action="previous-week" aria-label="Vorherige Woche">${icon('chevron-left')}</button><span class="week-title">${dayLabel(dateKey(start))} – ${dayLabel(dateKey(end))}</span><button class="icon-button" data-action="next-week" aria-label="Nächste Woche">${icon('chevron-right')}</button><button class="button small subtle" data-action="current-week">Heute</button></div>`) + `<div class="week-grid" role="region" aria-label="Wochenplanung, bei Bedarf seitlich scrollen" tabindex="0">${days.map(d => {const key=dateKey(d);const tasks=state.tasks.filter(t=>dateValue(t.scheduled_for)===key);return `<section class="day ${key===state.today?'current':''}" data-drop-date="${key}"><div class="day-heading"><span>${d.toLocaleDateString('de-DE',{weekday:'short'})}</span><strong>${d.getDate()}</strong></div>${tasks.length?`<ul class="task-list">${tasks.map(t=>taskRow(t,true)).join('')}</ul>`:'<p class="empty-small">Keine Aufgaben.</p>'}<button class="day-add" data-action="new-task" data-date="${key}">+ Aufgabe</button></section>`;}).join('')}</div><p class="review-note">Am Griff ziehen, um Aufgaben zu sortieren oder auf einen anderen Tag zu verschieben. Alternativ Aufgabe anklicken und Termin ändern.</p>`;
+    return header('Woche', `<div class="week-nav"><button class="icon-button" data-action="previous-week" aria-label="Vorherige Woche">${icon('chevron-left')}</button><span class="week-title">${dayLabel(dateKey(start))} – ${dayLabel(dateKey(end))}</span><button class="icon-button" data-action="next-week" aria-label="Nächste Woche">${icon('chevron-right')}</button><button class="button small subtle" data-action="current-week">Heute</button></div>`) + `<div class="week-grid" role="region" aria-label="Wochenplanung, bei Bedarf seitlich scrollen" tabindex="0">${days.map(d => {const key=dateKey(d);const tasks=state.tasks.filter(t=>dateValue(t.scheduled_for)===key);return `<section class="day ${key===state.today?'current':''}" data-drop-date="${key}"><div class="day-heading"><span>${d.toLocaleDateString('de-DE',{weekday:'short'})}</span><strong>${d.getDate()}</strong></div>${tasks.length?`<ul class="task-list">${tasks.map(t=>taskRow(t,true)).join('')}</ul>`:'<p class="empty-small">Keine Aufgaben.</p>'}<button class="day-add" data-action="new-task" data-date="${key}">+ Aufgabe</button></section>`;}).join('')}</div><p class="review-note">Aufgabenkarte ziehen, um zu sortieren oder auf einen anderen Tag zu verschieben. Auf Touchscreens kurz halten, dann ziehen. Zum Bearbeiten den Titel antippen.</p>`;
 }
 function questsScreen() {
     const quests=state.quests.filter(q=>Boolean(q.completed_at)===showCompletedQuests);
@@ -210,6 +211,9 @@ function confirmDelete(text) {
     return new Promise(resolve=>{document.querySelector('#confirm-text').textContent=text;confirmDialog.returnValue='cancel';confirmDialog.addEventListener('close',()=>resolve(confirmDialog.returnValue==='delete'),{once:true});confirmDialog.showModal();});
 }
 document.addEventListener('click',async event=>{
+    if(Date.now()<suppressTaskClickUntil && event.detail!==0) {
+        event.preventDefault();event.stopImmediatePropagation();return;
+    }
     if(event.target.closest('[data-close]')){editor.close();return;}
     const button=event.target.closest('[data-action]');if(!button) return;
     const action=button.dataset.action,id=Number(button.dataset.id);
@@ -217,7 +221,6 @@ document.addEventListener('click',async event=>{
     try {
         if(action==='toggle-immersive'&&state) return setImmersive(!immersive);
         if(action==='retry') return await refresh();
-        if(action==='reorder-task') return;
         if(!state) return;
         if(action==='new-task') return taskEditor(null,button.dataset.date||state.today);
         if(action==='edit-task'&&task) return taskEditor(task);
@@ -287,6 +290,8 @@ function cancelTaskDrag() {
     if(!taskDrag) return;
     const drag=taskDrag;
     taskDrag=null;
+    clearTimeout(drag.holdTimer);
+    if(drag.active) suppressTaskClickUntil=Date.now()+800;
     cancelAnimationFrame(drag.raf);
     drag.ghost?.remove();
     drag.marker?.remove();
@@ -294,7 +299,7 @@ function cancelTaskDrag() {
     drag.zone?.classList.remove('drop-day-active');
     document.body.classList.remove('task-drag-active');
     screen.querySelectorAll('[data-drop-date]').forEach(zone=>zone.classList.remove('drop-day-available'));
-    if(drag.handle.hasPointerCapture?.(drag.pointerId)) drag.handle.releasePointerCapture(drag.pointerId);
+    if(drag.row.hasPointerCapture?.(drag.pointerId)) drag.row.releasePointerCapture(drag.pointerId);
 }
 function updateTaskDrop(drag) {
     const hit=document.elementFromPoint(drag.x,drag.y);
@@ -332,45 +337,60 @@ function taskDragFrame() {
     updateTaskDrop(drag);
     drag.raf=requestAnimationFrame(taskDragFrame);
 }
+function startTaskDrag(drag) {
+    drag.row.setPointerCapture(drag.pointerId);
+    drag.active=true;
+    const rect=drag.row.getBoundingClientRect();
+    drag.ghost=drag.row.cloneNode(true);
+    drag.ghost.removeAttribute('data-task-id');
+    drag.ghost.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+    drag.ghost.classList.add('task-drag-ghost');
+    if(drag.row.closest('.day')) drag.ghost.classList.add('task-drag-compact');
+    drag.ghost.style.width=rect.width+'px';
+    drag.ghost.style.height=rect.height+'px';
+    drag.ghost.setAttribute('aria-hidden','true');
+    drag.ghost.inert=true;
+    document.body.append(drag.ghost);
+    drag.marker=document.createElement('li');
+    drag.marker.className='task-insertion-marker';
+    drag.marker.setAttribute('aria-hidden','true');
+    drag.row.classList.add('drag-placeholder');
+    document.body.classList.add('task-drag-active');
+    screen.querySelectorAll('[data-drop-date]').forEach(zone=>zone.classList.add('drop-day-available'));
+    taskDragFrame();
+}
 document.addEventListener('pointerdown',event=>{
-    const handle=event.target.closest('.task-handle');
-    if(!handle || mutationPending || taskDrag || event.button!==0 || event.isPrimary===false) return;
-    const row=handle.closest('[data-task-id]'),list=row.closest('.task-list');
-    const rect=row.getBoundingClientRect();
-    taskDrag={handle,row,list,pointerId:event.pointerId,startX:event.clientX,startY:event.clientY,x:event.clientX,y:event.clientY,offsetX:event.clientX-rect.left,offsetY:event.clientY-rect.top,active:false,zone:null,valid:false,raf:null};
+    if(!taskDrag && event.isPrimary!==false) suppressTaskClickUntil=0;
+    const row=event.target.closest('[data-task-id]');
+    const control=event.target.closest('button, input, select, textarea, a, [contenteditable]');
+    if(!row || (control && !control.matches('.task-title')) || mutationPending || taskDrag || event.button!==0 || event.isPrimary===false) return;
+    const list=row.closest('.task-list'),rect=row.getBoundingClientRect();
+    taskDrag={row,list,pointerId:event.pointerId,pointerType:event.pointerType,startX:event.clientX,startY:event.clientY,x:event.clientX,y:event.clientY,offsetX:event.clientX-rect.left,offsetY:event.clientY-rect.top,active:false,armed:event.pointerType!=='touch',zone:null,valid:false,raf:null};
+    const drag=taskDrag;
+    if(!drag.armed) drag.holdTimer=setTimeout(()=>{if(taskDrag===drag) drag.armed=true;},450);
     ++refreshSequence;
-    handle.setPointerCapture(event.pointerId);
 });
 document.addEventListener('pointermove',event=>{
     const drag=taskDrag;
     if(!drag || drag.pointerId!==event.pointerId) return;
     drag.x=event.clientX;drag.y=event.clientY;
-    if(!drag.active && Math.hypot(drag.x-drag.startX,drag.y-drag.startY)<6) return;
     if(!drag.active) {
-        drag.active=true;
-        const rect=drag.row.getBoundingClientRect();
-        drag.ghost=drag.row.cloneNode(true);
-        drag.ghost.removeAttribute('data-task-id');
-        drag.ghost.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
-        drag.ghost.classList.add('task-drag-ghost');
-        if(drag.row.closest('.day')) drag.ghost.classList.add('task-drag-compact');
-        drag.ghost.style.width=rect.width+'px';
-        drag.ghost.style.height=rect.height+'px';
-        drag.ghost.setAttribute('aria-hidden','true');
-        drag.ghost.inert=true;
-        document.body.append(drag.ghost);
-        drag.marker=document.createElement('li');
-        drag.marker.className='task-insertion-marker';
-        drag.marker.setAttribute('aria-hidden','true');
-        drag.row.classList.add('drag-placeholder');
-        document.body.classList.add('task-drag-active');
-        screen.querySelectorAll('[data-drop-date]').forEach(zone=>zone.classList.add('drop-day-available'));
-        taskDragFrame();
+        if(Math.hypot(drag.x-drag.startX,drag.y-drag.startY)<6) return;
+        if(!drag.armed) {cancelTaskDrag();return;}
+        startTaskDrag(drag);
     } else {
         drag.ghost.style.transform='translate3d('+(drag.x-drag.offsetX)+'px,'+(drag.y-drag.offsetY)+'px,0)';
         updateTaskDrop(drag);
     }
     event.preventDefault();
+});
+// Native page/weekly panning stays available until a deliberate long press.
+// Changing touch-action after pointerdown cannot cancel an already-started pan.
+document.addEventListener('touchmove',event=>{
+    if(taskDrag?.pointerType==='touch' && taskDrag.armed && event.cancelable) event.preventDefault();
+},{passive:false});
+document.addEventListener('contextmenu',event=>{
+    if(taskDrag?.pointerType==='touch' && taskDrag.armed) event.preventDefault();
 });
 document.addEventListener('pointerup',async event=>{
     if(!taskDrag || taskDrag.pointerId!==event.pointerId) return;
@@ -387,14 +407,17 @@ document.addEventListener('lostpointercapture',cancelPointerDrag);
 window.addEventListener('blur',cancelTaskDrag);
 document.addEventListener('keydown',async event=>{
     if(event.key==='Escape' && taskDrag) {cancelTaskDrag();return;}
-    const handle=event.target?.closest?.('.task-handle');
-    if(!handle || !['ArrowUp','ArrowDown'].includes(event.key)) return;
+    const row=event.target?.closest?.('[data-task-id]');
+    if(!row || event.target!==row || !['ArrowUp','ArrowDown'].includes(event.key)) return;
     event.preventDefault();
     if(mutationPending || taskDrag) return;
-    const ids=listTaskIds(handle.closest('.task-list')),id=Number(handle.dataset.id);
+    const ids=listTaskIds(row.closest('.task-list')),id=Number(row.dataset.taskId);
     const target=ids[ids.indexOf(id)+(event.key==='ArrowUp'?-1:1)];
     if(target===undefined) return;
-    try { await persistTaskOrder(ids,id,target); }
+    try {
+        await persistTaskOrder(ids,id,target);
+        screen.querySelector('[data-task-id="'+id+'"]')?.focus();
+    }
     catch(error) { showError(error.message); }
 });
 document.addEventListener('submit',async event=>{
@@ -429,7 +452,7 @@ function pwaError(error) {
     output.hidden = false;
 }
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=9').then(registration => {
+    navigator.serviceWorker.register('/sw.js?v=10').then(registration => {
         const watch = () => {
             const worker = registration.installing;
             worker?.addEventListener('statechange', () => {
