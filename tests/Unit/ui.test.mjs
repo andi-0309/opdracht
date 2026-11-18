@@ -11,7 +11,7 @@ function app() {
         if (nodes.has(selector)) return nodes.get(selector);
         const element = {innerHTML:'', textContent:'', hidden:false, open:false, dataset:{}, content:'test-csrf', events:{},
             style:{}, append(child){this.child=child;}, remove(){this.removed=true;}, before(child){this.beforeChild=child;}, removeAttribute(name){delete this.attributes[name];}, getBoundingClientRect(){return {left:100,top:100,width:200,height:80,bottom:180,right:300};}, cloneNode(){return node('clone');}, attributes:{}, setAttribute(name,value){this.attributes[name]=value;}, classList:{values:new Set(), add(name){this.values.add(name);}, remove(name){this.values.delete(name);}, toggle(name,enabled){if(enabled)this.values.add(name);else this.values.delete(name);}}, addEventListener(name, callback){this.events[name]=callback;},
-            focus(){}, matches(){return false;}, querySelector:node, querySelectorAll(){return [];},
+            focus(){}, closest(){return null;}, matches(){return false;}, querySelector:node, querySelectorAll(){return [];},
             showModal(){this.open=true;}, close(){this.open=false; this.events.close?.();}};
         nodes.set(selector, element);
         return element;
@@ -157,7 +157,7 @@ test('mobile focus uses dynamic viewport and safe areas in both orientations wit
     assert.match(css,/env\(safe-area-inset-left\)/);
     assert.doesNotMatch(css,/body[^{}]*{[^}]*overflow:\s*hidden/);
     const sw=fs.readFileSync(new URL('../../public/sw.js',import.meta.url),'utf8');
-    assert.match(sw,/opdracht-static-v10/);assert.match(sw,/app.js\?v=10/);assert.match(sw,/ui.svg\?v=6/);
+    assert.match(sw,/opdracht-static-v11/);assert.match(sw,/app.js\?v=11/);assert.match(sw,/ui.svg\?v=6/);
 });
 
 function dragFixture() {
@@ -260,7 +260,7 @@ test('checkbox focus and delete controls never start drag, including nested icon
         ui.events.pointerdown({...event(),target:icon});ui.events.pointermove(event(400,200));
         assert.equal(ui.run('taskDrag'),null);
         const clicked=ui.events.click({target:icon,detail:1});
-        if(action==='delete-task') {assert.equal(ui.node('#confirm-dialog').open,true);ui.node('#confirm-dialog').close();}
+        if(action==='delete-task') assert.equal(ui.node('#confirm-dialog').open,false);
         await clicked;
         if(action==='toggle-task')assert.equal(ui.run('calls[0].body.completed'),true);
         if(action==='focus-task')assert.equal(ui.run('selectedTaskId'),1);
@@ -305,4 +305,114 @@ test('row keyboard reorders in both directions and ignores arrows bubbling from 
         assert.equal(prevented,true);assert.equal(ui.run('calls.length'),1);
         assert.deepEqual(Array.from(ui.run('calls[0].body.task_ids')),key==='ArrowDown'?[2,1]:[1,2]);
     }
+});
+
+test('week columns keep a 280px minimum at every breakpoint and desktop main is unrestricted',()=>{
+    const css=fs.readFileSync(new URL('../../public/app.css',import.meta.url),'utf8');
+    const grids=[...css.matchAll(/\.week-grid\s*\{([^}]+)\}/g)].map(match=>match[1]);
+    assert.ok(grids.some(rule=>/overflow-x: auto/.test(rule)));
+    for(const rule of grids.filter(rule=>rule.includes('grid-template-columns'))) assert.match(rule,/repeat\(7, minmax\(280px, 1fr\)\)/);
+    assert.match(css,/\.app-layout main \{[^}]*max-width: none; width: 100%/);
+    assert.match(css,/\.task-list \{[^}]*display: grid; gap: 12px/);
+    assert.match(css,/\.task \{[^}]*border: 1px solid var\(--line\);[^}]*border-radius: 12px; background: var\(--paper\); box-shadow:/);
+    assert.match(css,/:root\[data-theme="dark"\] \.task \{ box-shadow:/);
+});
+test('Today and each week day split completed cards into closed editable/reopenable details only',()=>{
+    const ui=app();ui.run('state={today:"2026-11-18",quests:[],weekly:{},tasks:[{id:1,title:"Open",scheduled_for:"2026-11-18"},{id:2,title:"Done",scheduled_for:"2026-11-18",completed_at:"done"},{id:3,title:"Next done",scheduled_for:"2026-11-19",completed_at:"done"}]};');
+    for(const html of [ui.run('todayScreen()'),ui.run('weekScreen()')]) {
+        const completed=[...html.matchAll(/<details class="section completed-tasks">([\s\S]*?)<\/details>/g)];
+        assert.ok(completed.length);
+        for(const [whole,contents] of completed) {
+            assert.doesNotMatch(whole,/<details[^>]*\sopen(?:\s|>)/);
+            assert.match(contents,/data-action="edit-task"/);assert.match(contents,/Wieder öffnen:/);
+            assert.doesNotMatch(contents,/active-task-list|aria-keyshortcuts| verschieben"/);
+        }
+        const active=html.replace(/<details[\s\S]*?<\/details>/g,'');
+        assert.match(active,/data-task-id="1"/);assert.doesNotMatch(active,/data-task-id="[23]"/);
+    }
+});
+test('task and quest deletion is absent on cards and offered only in existing editors',()=>{
+    const ui=app();ui.run('state={today:"2026-11-18",tasks:[{id:1,title:"Task"}],quests:[{id:2,title:"Quest"}],weekly:{}};');
+    assert.doesNotMatch(ui.run('taskRow(state.tasks[0])+questsScreen()'),/data-action="delete-(?:task|quest)"|#trash/);
+    ui.run('taskEditor(state.tasks[0])');assert.match(ui.node('#editor-fields').innerHTML,/data-action="delete-task"/);
+    ui.run('questEditor(state.quests[0])');assert.match(ui.node('#editor-fields').innerHTML,/data-action="delete-quest"/);
+    ui.run('questEditor(null)');assert.doesNotMatch(ui.node('#editor-fields').innerHTML,/data-action="delete-quest"/);
+});
+test('both deletion actions require matching open editor, ask confirmation, cancel safely and close on success',async()=>{
+    for(const type of ['task','quest']) {
+        const ui=app(),button=ui.node('delete');button.dataset={action:'delete-'+type,id:'1'};
+        button.closest=selector=>selector==='[data-action]'?button:selector==='#editor'?ui.node('#editor'):null;
+        ui.run('state={today:"2026-11-18",tasks:[{id:1,title:"Task"}],quests:[{id:1,title:"Quest"}]};calls=[];mutate=async(...args)=>{calls.push(args);};');
+        await ui.events.click({target:button,detail:0});assert.equal(ui.node('#confirm-dialog').open,false);
+        ui.run(type+'Editor(state.'+(type==='task'?'tasks':'quests')+'[0])');
+        const pending=ui.events.click({target:button,detail:0});assert.equal(ui.node('#confirm-dialog').open,true);
+        ui.node('#confirm-dialog').returnValue='cancel';ui.node('#confirm-dialog').close();await pending;assert.equal(ui.run('calls.length'),0);
+        ui.run('editorTarget.id=2');await ui.events.click({target:button,detail:0});assert.equal(ui.node('#confirm-dialog').open,false);
+        ui.run('editorTarget.id=1');const accepted=ui.events.click({target:button,detail:0});
+        ui.node('#confirm-dialog').returnValue='delete';ui.node('#confirm-dialog').close();await accepted;
+        assert.equal(ui.run('calls[0][0]'),'/api/'+(type==='task'?'tasks':'quests')+'/1');assert.equal(ui.run('calls[0][1]'),'DELETE');assert.equal(ui.node('#editor').open,false);
+    }
+});
+test('drop ignores completed rows even in open details and ignores hits on the completed section',async()=>{
+    const {ui,row,zone,event}=dragFixture(),done=ui.node('done'),other=ui.node('other');
+    done.dataset.taskId='2';done.closest=selector=>selector==='.completed-tasks'?ui.node('details'):null;
+    other.dataset.taskId='3';other.getBoundingClientRect=()=>({top:200,height:80});
+    zone.querySelectorAll=()=>[row,done,other];zone.querySelector=selector=>selector==='.active-task-list'?ui.node('active-list'):null;
+    ui.run('state.tasks[1].completed_at="done";state.tasks.push({id:3,scheduled_for:"2026-11-19"});');
+    ui.events.pointerdown(event());ui.events.pointermove(event(420,220));assert.equal(ui.run('taskDrag.beforeId'),3);
+    await ui.events.pointerup(event(420,260));
+    assert.deepEqual(Array.from(ui.run('calls[0].body.task_ids')),[2,3,1]);assert.equal(ui.run('calls[0].body.scheduled_for'),'2026-11-19');
+    const second=dragFixture();second.ui.events.pointerdown(second.event());second.ui.events.pointermove(second.event(420,220));
+    second.ui.node('hit').closest=selector=>selector==='.completed-tasks'?second.ui.node('details'):selector==='[data-drop-date]'?second.zone:null;
+    await second.ui.events.pointerup(second.event(420,220));assert.equal(second.ui.run('calls.length'),0);
+});
+test('completed cards cannot initiate drag or reorder; completed-only day receives active insertion',async()=>{
+    const {ui,row,zone,event}=dragFixture(),done=ui.node('done');done.dataset.taskId='2';
+    done.closest=selector=>selector==='.completed-tasks'?ui.node('details'):null;
+    zone.querySelectorAll=()=>[done];zone.querySelector=selector=>selector==='.empty-small'?ui.node('empty'):null;
+    const closest=row.closest;row.closest=selector=>selector==='.completed-tasks'?ui.node('details'):closest(selector);
+    ui.events.pointerdown(event());assert.equal(ui.run('taskDrag'),null);
+    await ui.events.keydown({key:'ArrowDown',target:row,preventDefault(){throw Error('must ignore');}});
+    row.closest=closest;ui.events.pointerdown(event());ui.events.pointermove(event(420,220));assert.equal(ui.run('taskDrag.beforeId'),null);
+    assert.equal(ui.node('empty').beforeChild,ui.node('created-li'));await ui.events.pointerup(event(420,220));
+    assert.deepEqual(Array.from(ui.run('calls[0].body.task_ids')),[2,1]);
+});
+test('page motion runs only on navigation, completion motion on changes, and reduced-motion disables JS and CSS',()=>{
+    const ui=app();let count=0;ui.node('#screen').animate=()=>count++;
+    ui.run('state={today:"2026-11-18",tasks:[],quests:[],weekly:{}};location.hash="#today";render();');assert.equal(count,1);
+    ui.run('render();setImmersive(true);setImmersive(false);render();');assert.equal(count,1);
+    ui.run('location.hash="#week";render();');assert.equal(count,2);
+    ui.run('weekOffset++;render();');assert.equal(count,3);
+    ui.run('window.matchMedia=()=>({matches:true});location.hash="#quests";render();');assert.equal(count,3);
+    ui.run('animateChange(screen,[{opacity:0},{opacity:1}]);');assert.equal(count,3);
+    const css=fs.readFileSync(new URL('../../public/app.css',import.meta.url),'utf8');
+    assert.match(css,/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*animation: none !important; transition: none !important/);
+    assert.match(css,/task\.task-drag-ghost \{[^}]*transition: none; animation: none;/);
+    assert.match(css,/dialog\[open\]::backdrop \{ animation:/);
+    assert.doesNotMatch(css,/(?:^|\n)\.task\s*\{[^}]*animation:/);
+});
+test('cache 11 references agree across worker and Blade views while icon version stays 6',()=>{
+    for(const file of ['public/sw.js','resources/views/app.blade.php','resources/views/login.blade.php']) {
+        const contents=fs.readFileSync(new URL('../../'+file,import.meta.url),'utf8');assert.match(contents,/app.css\?v=11/);assert.doesNotMatch(contents,/app\.(css|js)\?v=10/);
+    }
+    assert.match(source,/sw.js\?v=11/);assert.match(source,/ui.svg\?v=6/);
+});
+test('completion and reopening animate once without changing dates/focus or animating every refresh',()=>{
+    const ui=app(),row=ui.node('motion-row'),details=ui.node('motion-details'),summary=ui.node('motion-summary');let cards=0,summaries=0;
+    row.animate=()=>cards++;summary.animate=()=>summaries++;row.closest=selector=>selector==='details'?details:null;details.querySelector=()=>summary;
+    ui.node('#screen').querySelector=()=>row;
+    ui.run('state={today:"2026-11-18",tasks:[{id:1,title:"Test",scheduled_for:"2026-11-18"}],quests:[],weekly:{},focus:{id:9,task_id:1}};location.hash="#today";render();');
+    ui.run('state.tasks[0].completed_at="done";render();render();');assert.equal(summaries,1);assert.equal(cards,0);
+    ui.run('state.tasks[0].completed_at=null;render();render();');assert.equal(cards,1);assert.equal(summaries,1);
+    assert.equal(ui.run('state.tasks[0].scheduled_for'),'2026-11-18');assert.equal(ui.run('state.focus.id'),9);
+    ui.run('window.matchMedia=()=>({matches:true});state.tasks[0].completed_at="done";render();');assert.equal(summaries,1);
+});
+test('progress width motion compares old/new values rather than replaying on identical refresh',()=>{
+    const ui=app(),bar=ui.node('progress');bar.dataset.progressId='quest-1';bar.style.width='25%';let count=0;
+    bar.animate=()=>count++;ui.node('#screen').querySelectorAll=selector=>selector==='[data-progress-id]'?[bar]:[];
+    let html='';Object.defineProperty(ui.node('#screen'),'innerHTML',{get(){return html;},set(value){html=value;bar.style.width='50%';}});
+    ui.run('state={today:"2026-11-18",tasks:[],quests:[],weekly:{}};location.hash="#quests";render();');assert.equal(count,1);
+    ui.run('render();');assert.equal(count,1);
+    bar.style.width='25%';ui.run('render();');assert.equal(count,2);
+    ui.run('window.matchMedia=()=>({matches:true});');bar.style.width='25%';ui.run('render();');assert.equal(count,2);
 });

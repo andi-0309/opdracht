@@ -12,6 +12,9 @@ let weekOffset = 0;
 let showCompletedQuests = false;
 let selectedTaskId = null;
 let editorSave = null;
+let editorTarget = null;
+let renderedPageKey = null;
+let renderedTasks = new Map();
 let refreshSequence = 0;
 let mutationPending = false;
 let serverClockOffset = 0;
@@ -105,28 +108,31 @@ function stats() {
 }
 function taskRow(task, compact = false) {
     const running = state.focus?.task_id === task.id;
-    return `<li class="task ${task.completed_at ? 'done' : ''}" data-task-id="${task.id}" tabindex="0" aria-label="${escapeHtml(task.title)} verschieben" aria-describedby="reorder-help" aria-keyshortcuts="ArrowUp ArrowDown"><button class="task-check" role="checkbox" aria-checked="${Boolean(task.completed_at)}" aria-label="${escapeHtml(task.completed_at ? 'Wieder öffnen: ' : 'Erledigen: ')}${escapeHtml(task.title)}" data-action="toggle-task" data-id="${task.id}"><span class="task-check-box">${icon('check')}</span></button><div class="task-body"><button class="task-title" data-action="edit-task" data-id="${task.id}">${escapeHtml(task.title)}</button><div class="task-meta">${tag(taskQuest(task))}${!compact && task.scheduled_for && dateValue(task.scheduled_for) !== state.today ? `<span>${dayLabel(task.scheduled_for)}</span>` : ''}${task.focus_seconds ? `<span>${duration(task.focus_seconds)}</span>` : ''}</div></div><div class="task-actions">${!task.completed_at ? `<button class="icon-button" data-action="focus-task" data-id="${task.id}" aria-label="Fokus für ${escapeHtml(task.title)}" title="Fokus">${icon(running ? 'timer' : 'play')}</button>` : ''}<button class="icon-button delete-task" data-action="delete-task" data-id="${task.id}" aria-label="${escapeHtml(task.title)} löschen" title="Löschen">${icon('trash')}</button></div></li>`;
+    return `<li class="task ${task.completed_at ? 'done' : ''}" data-task-id="${task.id}" ${!task.completed_at ? `tabindex="0" aria-label="${escapeHtml(task.title)} verschieben" aria-describedby="reorder-help" aria-keyshortcuts="ArrowUp ArrowDown"` : ''}><button class="task-check" role="checkbox" aria-checked="${Boolean(task.completed_at)}" aria-label="${escapeHtml(task.completed_at ? 'Wieder öffnen: ' : 'Erledigen: ')}${escapeHtml(task.title)}" data-action="toggle-task" data-id="${task.id}"><span class="task-check-box">${icon('check')}</span></button><div class="task-body"><button class="task-title" data-action="edit-task" data-id="${task.id}">${escapeHtml(task.title)}</button><div class="task-meta">${tag(taskQuest(task))}${!compact && task.scheduled_for && dateValue(task.scheduled_for) !== state.today ? `<span>${dayLabel(task.scheduled_for)}</span>` : ''}${task.focus_seconds ? `<span>${duration(task.focus_seconds)}</span>` : ''}</div></div><div class="task-actions">${!task.completed_at ? `<button class="icon-button" data-action="focus-task" data-id="${task.id}" aria-label="Fokus für ${escapeHtml(task.title)}" title="Fokus">${icon(running ? 'timer' : 'play')}</button>` : ''}</div></li>`;
 }
 function taskSection(title, tasks, emptyText, addDate) {
-    return `<section class="section" ${addDate !== undefined ? `data-drop-date="${addDate || ''}"` : ''}><div class="section-heading"><h2>${title}<span class="count">${tasks.length}</span></h2></div>${tasks.length ? `<ul class="task-list">${tasks.map(t => taskRow(t)).join('')}</ul>` : `<p class="empty-small">${emptyText}</p>`}${addDate !== undefined ? `<form class="quick-add" data-date="${addDate || ''}"><input name="title" aria-label="Neue Aufgabe für ${title}" placeholder="Neue Aufgabe" maxlength="200" required autocomplete="off"><button class="button subtle" type="submit" aria-label="Aufgabe hinzufügen">+</button></form>` : ''}</section>`;
+    return `<section class="section" ${addDate !== undefined ? `data-drop-date="${addDate || ''}"` : ''}><div class="section-heading"><h2>${title}<span class="count">${tasks.length}</span></h2></div>${tasks.length ? `<ul class="task-list active-task-list">${tasks.map(t => taskRow(t)).join('')}</ul>` : `<p class="empty-small">${emptyText}</p>`}${addDate !== undefined ? `<form class="quick-add" data-date="${addDate || ''}"><input name="title" aria-label="Neue Aufgabe für ${title}" placeholder="Neue Aufgabe" maxlength="200" required autocomplete="off"><button class="button subtle" type="submit" aria-label="Aufgabe hinzufügen">+</button></form>` : ''}</section>`;
+}
+function completedSection(tasks, compact = false) {
+    return tasks.length ? `<details class="section completed-tasks"><summary>Erledigt (${tasks.length})</summary><ul class="task-list">${tasks.map(task=>taskRow(task,compact)).join('')}</ul></details>` : '';
 }
 function todayScreen() {
     const today = state.tasks.filter(t => dateValue(t.scheduled_for) === state.today && !t.completed_at);
     const overdue = state.tasks.filter(t => t.scheduled_for && dateValue(t.scheduled_for) < state.today && !t.completed_at);
     const inbox = state.tasks.filter(t => !t.scheduled_for && !t.completed_at);
     const completed = state.tasks.filter(t => t.completed_at);
-    return header('Heute', '<button class="button primary" data-action="new-task">+ Aufgabe hinzufügen</button>') + stats() + `<div class="today-tasks">${overdue.length ? taskSection('Überfällig',overdue,'') : ''}${taskSection('Für heute',today,'Keine Aufgaben für heute.',state.today)}${taskSection('Ohne Termin',inbox,'Keine Aufgaben ohne Termin.',null)}${completed.length ? `<details class="section"><summary>Erledigt (${completed.length})</summary><ul class="task-list">${completed.map(t => taskRow(t)).join('')}</ul></details>` : ''}</div>`;
+    return header('Heute', '<button class="button primary" data-action="new-task">+ Aufgabe hinzufügen</button>') + stats() + `<div class="today-tasks">${overdue.length ? taskSection('Überfällig',overdue,'') : ''}${taskSection('Für heute',today,'Keine Aufgaben für heute.',state.today)}${taskSection('Ohne Termin',inbox,'Keine Aufgaben ohne Termin.',null)}${completedSection(completed)}</div>`;
 }
 function weekStart() {const date = localDate(state.today); date.setDate(date.getDate() - (date.getDay()+6)%7 + weekOffset*7); return date;}
 function weekScreen() {
     const start = weekStart();
     const end = new Date(start); end.setDate(end.getDate()+6);
     const days = Array.from({length:7},(_,i) => {const d=new Date(start); d.setDate(d.getDate()+i); return d;});
-    return header('Woche', `<div class="week-nav"><button class="icon-button" data-action="previous-week" aria-label="Vorherige Woche">${icon('chevron-left')}</button><span class="week-title">${dayLabel(dateKey(start))} – ${dayLabel(dateKey(end))}</span><button class="icon-button" data-action="next-week" aria-label="Nächste Woche">${icon('chevron-right')}</button><button class="button small subtle" data-action="current-week">Heute</button></div>`) + `<div class="week-grid" role="region" aria-label="Wochenplanung, bei Bedarf seitlich scrollen" tabindex="0">${days.map(d => {const key=dateKey(d);const tasks=state.tasks.filter(t=>dateValue(t.scheduled_for)===key);return `<section class="day ${key===state.today?'current':''}" data-drop-date="${key}"><div class="day-heading"><span>${d.toLocaleDateString('de-DE',{weekday:'short'})}</span><strong>${d.getDate()}</strong></div>${tasks.length?`<ul class="task-list">${tasks.map(t=>taskRow(t,true)).join('')}</ul>`:'<p class="empty-small">Keine Aufgaben.</p>'}<button class="day-add" data-action="new-task" data-date="${key}">+ Aufgabe</button></section>`;}).join('')}</div><p class="review-note">Aufgabenkarte ziehen, um zu sortieren oder auf einen anderen Tag zu verschieben. Auf Touchscreens kurz halten, dann ziehen. Zum Bearbeiten den Titel antippen.</p>`;
+    return header('Woche', `<div class="week-nav"><button class="icon-button" data-action="previous-week" aria-label="Vorherige Woche">${icon('chevron-left')}</button><span class="week-title">${dayLabel(dateKey(start))} – ${dayLabel(dateKey(end))}</span><button class="icon-button" data-action="next-week" aria-label="Nächste Woche">${icon('chevron-right')}</button><button class="button small subtle" data-action="current-week">Heute</button></div>`) + `<div class="week-grid" role="region" aria-label="Wochenplanung, bei Bedarf seitlich scrollen" tabindex="0">${days.map(d => {const key=dateKey(d);const dayTasks=state.tasks.filter(t=>dateValue(t.scheduled_for)===key);const tasks=dayTasks.filter(t=>!t.completed_at);const completed=dayTasks.filter(t=>t.completed_at);return `<section class="day ${key===state.today?'current':''}" data-drop-date="${key}"><div class="day-heading"><span>${d.toLocaleDateString('de-DE',{weekday:'short'})}</span><strong>${d.getDate()}</strong></div>${tasks.length?`<ul class="task-list active-task-list">${tasks.map(t=>taskRow(t,true)).join('')}</ul>`:'<p class="empty-small">Keine Aufgaben.</p>'}<button class="day-add" data-action="new-task" data-date="${key}">+ Aufgabe</button>${completedSection(completed,true)}</section>`;}).join('')}</div><p class="review-note">Aufgabenkarte ziehen, um zu sortieren oder auf einen anderen Tag zu verschieben. Auf Touchscreens kurz halten, dann ziehen. Zum Bearbeiten den Titel antippen.</p>`;
 }
 function questsScreen() {
     const quests=state.quests.filter(q=>Boolean(q.completed_at)===showCompletedQuests);
-    return header('Quests', '<button class="button primary" data-action="new-quest">+ Neue Quest</button>') + `<div class="tabs" role="group" aria-label="Quests filtern"><button class="${!showCompletedQuests?'active':''}" data-action="active-quests" aria-pressed="${!showCompletedQuests}">Aktiv · ${state.quests.filter(q=>!q.completed_at).length}</button><button class="${showCompletedQuests?'active':''}" data-action="completed-quests" aria-pressed="${showCompletedQuests}">Abgeschlossen · ${state.quests.filter(q=>q.completed_at).length}</button></div>` + (quests.length ? `<div class="quest-grid">${quests.map(q=>{const tasks=state.tasks.filter(t=>t.quest_id===q.id);const done=tasks.filter(t=>t.completed_at).length;return `<article class="quest-card" style="--quest-color:${color(q.color)}"><div class="quest-top"><span class="quest-icon" aria-hidden="true">${icon('target')}</span><div><button class="icon-button" data-action="edit-quest" data-id="${q.id}" aria-label="${escapeHtml(q.title)} bearbeiten">${icon('pencil')}</button><button class="icon-button" data-action="delete-quest" data-id="${q.id}" aria-label="${escapeHtml(q.title)} löschen">${icon('trash')}</button></div></div><h2>${escapeHtml(q.title)}</h2>${q.description ? `<p>${escapeHtml(q.description)}</p>` : ''}<div class="quest-progress"><span style="width:${tasks.length?Math.round(done/tasks.length*100):0}%"></span></div><div class="quest-footer"><span>${done} / ${tasks.length} Aufgaben</span><span>${duration(tasks.reduce((sum,t)=>sum+Number(t.focus_seconds||0),0))} Fokus</span></div></article>`;}).join('')}</div>` : `<div class="empty"><div class="empty-symbol">◇</div><h2>${showCompletedQuests?'Keine abgeschlossenen Quests.':'Keine Quests vorhanden.'}</h2>${!showCompletedQuests?'<button class="button primary" data-action="new-quest">Quest erstellen</button>':''}</div>`);
+    return header('Quests', '<button class="button primary" data-action="new-quest">+ Neue Quest</button>') + `<div class="tabs" role="group" aria-label="Quests filtern"><button class="${!showCompletedQuests?'active':''}" data-action="active-quests" aria-pressed="${!showCompletedQuests}">Aktiv · ${state.quests.filter(q=>!q.completed_at).length}</button><button class="${showCompletedQuests?'active':''}" data-action="completed-quests" aria-pressed="${showCompletedQuests}">Abgeschlossen · ${state.quests.filter(q=>q.completed_at).length}</button></div>` + (quests.length ? `<div class="quest-grid">${quests.map(q=>{const tasks=state.tasks.filter(t=>t.quest_id===q.id);const done=tasks.filter(t=>t.completed_at).length;return `<article class="quest-card" style="--quest-color:${color(q.color)}"><div class="quest-top"><span class="quest-icon" aria-hidden="true">${icon('target')}</span><div><button class="icon-button" data-action="edit-quest" data-id="${q.id}" aria-label="${escapeHtml(q.title)} bearbeiten">${icon('pencil')}</button></div></div><h2>${escapeHtml(q.title)}</h2>${q.description ? `<p>${escapeHtml(q.description)}</p>` : ''}<div class="quest-progress"><span data-progress-id="quest-${q.id}" style="width:${tasks.length?Math.round(done/tasks.length*100):0}%"></span></div><div class="quest-footer"><span>${done} / ${tasks.length} Aufgaben</span><span>${duration(tasks.reduce((sum,t)=>sum+Number(t.focus_seconds||0),0))} Fokus</span></div></article>`;}).join('')}</div>` : `<div class="empty"><div class="empty-symbol">◇</div><h2>${showCompletedQuests?'Keine abgeschlossenen Quests.':'Keine Quests vorhanden.'}</h2>${!showCompletedQuests?'<button class="button primary" data-action="new-quest">Quest erstellen</button>':''}</div>`);
 }
 function focusTask() {
     return state.tasks.find(t=>t.id===state.focus?.task_id) || state.tasks.find(t=>t.id===selectedTaskId && !t.completed_at) || state.tasks.find(t=>!t.completed_at);
@@ -164,7 +170,11 @@ document.addEventListener('keydown',event=>{
 function reviewScreen() {
     const quests=state.quests.map(q=>({...q,seconds:state.tasks.filter(t=>t.quest_id===q.id).reduce((sum,t)=>sum+Number(t.focus_seconds||0),0)})).filter(q=>q.seconds>0).sort((a,b)=>b.seconds-a.seconds);
     const total=quests.reduce((sum,q)=>sum+q.seconds,0);
-    return header('Rückblick') + `<div class="stats-strip"><div class="stat"><span class="stat-label">Fokus diese Woche</span><span class="stat-value">${duration(state.weekly.seconds)}</span></div><div class="stat"><span class="stat-label">DIESE WOCHE ERLEDIGT</span><span class="stat-value">${state.weekly.completed}<small>Aufgaben</small></span></div><div class="stat"><span class="stat-label">QUESTS ABGESCHLOSSEN</span><span class="stat-value">${state.quests.filter(q=>q.completed_at).length}</span></div></div><section class="review-panel"><h2>Fokuszeit nach Quest</h2><p class="review-note">Gesamtzeit der vorhandenen Aufgaben.</p>${quests.length?quests.map(q=>`<div class="review-row">${tag(q)}<strong>${duration(q.seconds)}</strong></div><div class="review-bar"><span style="width:${Math.round(q.seconds/total*100)}%;background:${color(q.color)}"></span></div>`).join(''):'<p class="empty-small">Noch keine Fokuszeit gespeichert.</p>'}</section>`;
+    return header('Rückblick') + `<div class="stats-strip"><div class="stat"><span class="stat-label">Fokus diese Woche</span><span class="stat-value">${duration(state.weekly.seconds)}</span></div><div class="stat"><span class="stat-label">DIESE WOCHE ERLEDIGT</span><span class="stat-value">${state.weekly.completed}<small>Aufgaben</small></span></div><div class="stat"><span class="stat-label">QUESTS ABGESCHLOSSEN</span><span class="stat-value">${state.quests.filter(q=>q.completed_at).length}</span></div></div><section class="review-panel"><h2>Fokuszeit nach Quest</h2><p class="review-note">Gesamtzeit der vorhandenen Aufgaben.</p>${quests.length?quests.map(q=>`<div class="review-row">${tag(q)}<strong>${duration(q.seconds)}</strong></div><div class="review-bar"><span data-progress-id="review-${q.id}" style="width:${Math.round(q.seconds/total*100)}%;background:${color(q.color)}"></span></div>`).join(''):'<p class="empty-small">Noch keine Fokuszeit gespeichert.</p>'}</section>`;
+}
+function animateChange(element, frames, options = {}) {
+    if(!element || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || !element.animate) return;
+    element.animate(frames,{duration:180,easing:'ease-out',...options});
 }
 function render() {
     if(!state) return;
@@ -174,10 +184,27 @@ function render() {
     const focused=document.activeElement;
     const focusedAction=focused?.dataset.action;
     const focusedSelect=focused?.id;
+    const previousProgress=new Map(Array.from(screen.querySelectorAll('[data-progress-id]'),bar=>[bar.dataset.progressId,bar.style.width]));
     cancelTaskDrag();
     document.body.classList.toggle('focus-page',page==='focus');
+    const pageKey=page+':'+(page==='week'?weekOffset:page==='quests'?showCompletedQuests:'');
+    const pageChanged=renderedPageKey!==pageKey;
+    const previousTasks=renderedTasks;
+    renderedTasks=new Map(state.tasks.map(task=>[task.id,Boolean(task.completed_at)]));
+    renderedPageKey=pageKey;
     screen.dataset.page=page;
     screen.innerHTML=({today:todayScreen,week:weekScreen,quests:questsScreen,focus:focusScreen,review:reviewScreen})[page]();
+    screen.querySelectorAll('[data-progress-id]').forEach(bar=>{
+        const from=pageChanged ? '0%' : previousProgress.get(bar.dataset.progressId);
+        if(from!==undefined && from!==bar.style.width) animateChange(bar,[{width:from},{width:bar.style.width}],{duration:260});
+    });
+    if(pageChanged) animateChange(screen,[{opacity:.45},{opacity:1}],{duration:220});
+    else state.tasks.forEach(task=>{
+        if(previousTasks.get(task.id)===Boolean(task.completed_at)) return;
+        const row=screen.querySelector('[data-task-id="'+task.id+'"]');
+        const target=task.completed_at ? row?.closest('details')?.querySelector('summary') : row;
+        animateChange(target,[{opacity:.4},{opacity:1}]);
+    });
     if(page!=='focus') immersive=false;
     syncImmersive();
     if(focusedAction) {
@@ -202,10 +229,15 @@ function openEditor(title, fields, onSave) {
     editorSave=onSave;editor.showModal();
 }
 function taskEditor(task, date=state.today) {
+    editorTarget=task?{type:'task',id:task.id}:null;
     openEditor(task?'Aufgabe bearbeiten':'Neue Aufgabe',`<label>Aufgabe<input name="title" value="${escapeHtml(task?.title)}" maxlength="200" required autofocus></label><div class="form-row"><label>Tag<input type="date" name="scheduled_for" value="${escapeHtml(dateValue(task?task.scheduled_for:date))}"></label><label>Quest<select name="quest_id"><option value="">Ohne Quest</option>${state.quests.filter(q=>!q.completed_at || q.id===task?.quest_id).map(q=>`<option value="${q.id}" ${q.id===task?.quest_id?'selected':''}>${escapeHtml(q.title)}</option>`).join('')}</select></label></div><label>Notizen<textarea name="notes" maxlength="10000">${escapeHtml(task?.notes)}</textarea></label>${task?`<label class="check-label"><input type="checkbox" name="completed" ${task.completed_at?'checked':''}> Aufgabe abgeschlossen</label><button type="button" class="text-button" data-action="delete-task" data-id="${task.id}">Aufgabe löschen</button>`:''}`,async data=>{await mutate(task?`/api/tasks/${task.id}`:'/api/tasks',task?'PATCH':'POST',{title:data.get('title'),notes:data.get('notes'),scheduled_for:data.get('scheduled_for')||null,quest_id:data.get('quest_id')?Number(data.get('quest_id')):null,...(task?{completed:data.has('completed')}:{})});});
 }
 function questEditor(quest) {
-    openEditor(quest?'Quest bearbeiten':'Neue Quest',`<label>Titel<input name="title" value="${escapeHtml(quest?.title)}" maxlength="200" required autofocus></label><label>Beschreibung<textarea name="description" maxlength="10000">${escapeHtml(quest?.description)}</textarea></label>${colorChoices(quest?.color)}${quest?`<label class="check-label"><input type="checkbox" name="completed" ${quest.completed_at?'checked':''}> Quest abgeschlossen</label>`:''}`,async data=>{await mutate(quest?`/api/quests/${quest.id}`:'/api/quests',quest?'PATCH':'POST',{title:data.get('title'),description:data.get('description'),color:data.get('color'),...(quest?{completed:data.has('completed')}:{})});});
+    editorTarget=quest?{type:'quest',id:quest.id}:null;
+    openEditor(quest?'Quest bearbeiten':'Neue Quest',`<label>Titel<input name="title" value="${escapeHtml(quest?.title)}" maxlength="200" required autofocus></label><label>Beschreibung<textarea name="description" maxlength="10000">${escapeHtml(quest?.description)}</textarea></label>${colorChoices(quest?.color)}${quest?`<label class="check-label"><input type="checkbox" name="completed" ${quest.completed_at?'checked':''}> Quest abgeschlossen</label><button type="button" class="text-button" data-action="delete-quest" data-id="${quest.id}">Quest löschen</button>`:''}`,async data=>{await mutate(quest?`/api/quests/${quest.id}`:'/api/quests',quest?'PATCH':'POST',{title:data.get('title'),description:data.get('description'),color:data.get('color'),...(quest?{completed:data.has('completed')}:{})});});
+}
+function editorAllowsDelete(button, type, id) {
+    return editor.open && button.closest('#editor')===editor && editorTarget?.type===type && editorTarget.id===id;
 }
 function confirmDelete(text) {
     return new Promise(resolve=>{document.querySelector('#confirm-text').textContent=text;confirmDialog.returnValue='cancel';confirmDialog.addEventListener('close',()=>resolve(confirmDialog.returnValue==='delete'),{once:true});confirmDialog.showModal();});
@@ -233,8 +265,8 @@ document.addEventListener('click',async event=>{
         if(action==='focus-task'){selectedTaskId=id;location.hash='focus';return render();}
         button.disabled=true;
         if(action==='toggle-task'&&task) await mutate(`/api/tasks/${id}`,'PATCH',{completed:!task.completed_at});
-        if(action==='delete-task'&&task&&await confirmDelete(`„${task.title}“ wird dauerhaft gelöscht. Bereits gespeicherte Fokuszeiten bleiben im Rückblick erhalten.`)){await mutate(`/api/tasks/${id}`,'DELETE');editor.close();}
-        if(action==='delete-quest'&&quest&&await confirmDelete(`„${quest.title}“ löschen? Die Aufgaben bleiben erhalten und werden keiner Quest mehr zugeordnet.`)) await mutate(`/api/quests/${id}`,'DELETE');
+        if(action==='delete-task'&&task&&editorAllowsDelete(button,'task',id)&&await confirmDelete(`„${task.title}“ wird dauerhaft gelöscht. Bereits gespeicherte Fokuszeiten bleiben im Rückblick erhalten.`)){await mutate(`/api/tasks/${id}`,'DELETE');editor.close();}
+        if(action==='delete-quest'&&quest&&editorAllowsDelete(button,'quest',id)&&await confirmDelete(`„${quest.title}“ löschen? Die Aufgaben bleiben erhalten und werden keiner Quest mehr zugeordnet.`)){await mutate(`/api/quests/${id}`,'DELETE');editor.close();}
         if(action==='start-focus'&&focusTask()) await mutate('/api/focus','POST',{task_id:focusTask().id});
         if(action==='stop-focus'&&state.focus) await mutate('/api/focus/stop','POST',{session_id:state.focus.id});
         if(action==='finish-focus'&&state.focus){await mutate(`/api/tasks/${id}`,'PATCH',{completed:true});selectedTaskId=null;render();}
@@ -257,7 +289,10 @@ async function persistTaskOrder(visibleIds, movedId, targetId) {
     await mutate('/api/tasks/reorder','POST',{task_ids:orderedIds});
     document.querySelector('#reorder-status').textContent='Aufgabenreihenfolge gespeichert.';
 }
-function listTaskIds(list) { return Array.from(list.querySelectorAll('[data-task-id]'),row=>Number(row.dataset.taskId)); }
+function openTaskRows(scope) {
+    return Array.from(scope.querySelectorAll('[data-task-id]')).filter(row=>!row.closest('.completed-tasks') && !row.closest('details:not([open])'));
+}
+function listTaskIds(list) { return openTaskRows(list).map(row=>Number(row.dataset.taskId)); }
 // Destination insertion keeps every task ID and does not change local state before saving.
 function droppedTaskIds(allIds, destinationIds, movedId, beforeId) {
     const ids=allIds.filter(id=>id!==movedId);
@@ -270,6 +305,7 @@ function droppedTaskIds(allIds, destinationIds, movedId, beforeId) {
 async function persistTaskDrop(drag) {
     const movedId=Number(drag.row.dataset.taskId);
     const task=state.tasks.find(task=>task.id===movedId);
+    if(!task || task.completed_at) return;
     const scheduledFor=drag.zone ? drag.zone.dataset.dropDate || null : dateValue(task.scheduled_for);
     const allIds=state.tasks.map(task=>task.id);
     const destinationIds=listTaskIds(drag.zone || drag.list);
@@ -303,8 +339,9 @@ function cancelTaskDrag() {
 }
 function updateTaskDrop(drag) {
     const hit=document.elementFromPoint(drag.x,drag.y);
-    const zone=hit?.closest('[data-drop-date]');
-    const sameList=hit?.closest('.task-list')===drag.list;
+    const inCompleted=hit?.closest('.completed-tasks');
+    const zone=inCompleted ? null : hit?.closest('[data-drop-date]');
+    const sameList=!inCompleted && hit?.closest('.task-list')===drag.list;
     drag.zone?.classList.remove('drop-day-active');
     drag.zone=zone || null;
     drag.valid=Boolean(zone || sameList);
@@ -313,10 +350,10 @@ function updateTaskDrop(drag) {
     drag.beforeId=null;
     if(!drag.valid) return;
     const scope=zone || drag.list;
-    const rows=Array.from(scope.querySelectorAll('[data-task-id]')).filter(row=>row!==drag.row);
+    const rows=openTaskRows(scope).filter(row=>row!==drag.row);
     const before=rows.find(row=>{const rect=row.getBoundingClientRect();return drag.y<rect.top+rect.height/2;});
     drag.beforeId=before ? Number(before.dataset.taskId) : null;
-    const list=scope.matches('.task-list')?scope:scope.querySelector('.task-list');
+    const list=scope.matches('.task-list')?scope:scope.querySelector('.active-task-list');
     if(before) before.before(drag.marker);
     else if(list) list.append(drag.marker);
     else scope.querySelector('.empty-small').before(drag.marker);
@@ -363,7 +400,7 @@ document.addEventListener('pointerdown',event=>{
     if(!taskDrag && event.isPrimary!==false) suppressTaskClickUntil=0;
     const row=event.target.closest('[data-task-id]');
     const control=event.target.closest('button, input, select, textarea, a, [contenteditable]');
-    if(!row || (control && !control.matches('.task-title')) || mutationPending || taskDrag || event.button!==0 || event.isPrimary===false) return;
+    if(!row || row.closest('.completed-tasks') || (control && !control.matches('.task-title')) || mutationPending || taskDrag || event.button!==0 || event.isPrimary===false) return;
     const list=row.closest('.task-list'),rect=row.getBoundingClientRect();
     taskDrag={row,list,pointerId:event.pointerId,pointerType:event.pointerType,startX:event.clientX,startY:event.clientY,x:event.clientX,y:event.clientY,offsetX:event.clientX-rect.left,offsetY:event.clientY-rect.top,active:false,armed:event.pointerType!=='touch',zone:null,valid:false,raf:null};
     const drag=taskDrag;
@@ -408,7 +445,7 @@ window.addEventListener('blur',cancelTaskDrag);
 document.addEventListener('keydown',async event=>{
     if(event.key==='Escape' && taskDrag) {cancelTaskDrag();return;}
     const row=event.target?.closest?.('[data-task-id]');
-    if(!row || event.target!==row || !['ArrowUp','ArrowDown'].includes(event.key)) return;
+    if(!row || row.closest('.completed-tasks') || event.target!==row || !['ArrowUp','ArrowDown'].includes(event.key)) return;
     event.preventDefault();
     if(mutationPending || taskDrag) return;
     const ids=listTaskIds(row.closest('.task-list')),id=Number(row.dataset.taskId);
@@ -452,7 +489,7 @@ function pwaError(error) {
     output.hidden = false;
 }
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=10').then(registration => {
+    navigator.serviceWorker.register('/sw.js?v=11').then(registration => {
         const watch = () => {
             const worker = registration.installing;
             worker?.addEventListener('statechange', () => {
