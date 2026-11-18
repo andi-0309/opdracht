@@ -99,11 +99,18 @@ class PlannerController extends Controller
         $data = $request->validate([
             'task_ids' => ['required', 'array', 'min:1', 'max:10000'],
             'task_ids.*' => ['required', 'integer', 'distinct'],
+            'moved_task_id' => [Rule::requiredIf($request->exists('scheduled_for')), 'integer'],
+            'scheduled_for' => ['present_with:moved_task_id', 'nullable', 'date_format:Y-m-d'],
         ]);
         DB::transaction(function () use ($request, $data) {
             $tasks = Task::where('user_id', $request->user()->id)->orderBy('position')->orderBy('id')->lockForUpdate()->get();
             $ids = array_map('intval', $data['task_ids']);
             abort_unless(count(array_intersect($ids, $tasks->modelKeys())) === count($ids), 422, 'Die Aufgabenliste ist nicht mehr aktuell. Bitte lade sie erneut.');
+            if (array_key_exists('moved_task_id', $data)) {
+                $movedId = (int) $data['moved_task_id'];
+                abort_unless(in_array($movedId, $ids, true), 422, 'Die verschobene Aufgabe fehlt in der Aufgabenliste.');
+                Task::where('user_id', $request->user()->id)->whereKey($movedId)->update(['scheduled_for' => $data['scheduled_for']]);
+            }
             $ordered = [...$ids, ...array_values(array_diff($tasks->modelKeys(), $ids))];
             foreach ($ordered as $position => $id) {
                 Task::where('user_id', $request->user()->id)->whereKey($id)->update(['position' => $position + 1]);

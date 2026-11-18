@@ -107,7 +107,7 @@ function taskRow(task, compact = false) {
     return `<li class="task ${task.completed_at ? 'done' : ''}" data-task-id="${task.id}"><button class="task-handle" data-action="reorder-task" data-id="${task.id}" aria-label="${escapeHtml(task.title)} verschieben" aria-describedby="reorder-help" aria-keyshortcuts="ArrowUp ArrowDown" title="Ziehen oder mit Pfeiltasten verschieben"><span aria-hidden="true">⠿</span></button><button class="task-check" role="checkbox" aria-checked="${Boolean(task.completed_at)}" aria-label="${escapeHtml(task.completed_at ? 'Wieder öffnen: ' : 'Erledigen: ')}${escapeHtml(task.title)}" data-action="toggle-task" data-id="${task.id}"><span class="task-check-box">${icon('check')}</span></button><div class="task-body"><button class="task-title" data-action="edit-task" data-id="${task.id}">${escapeHtml(task.title)}</button><div class="task-meta">${tag(taskQuest(task))}${!compact && task.scheduled_for && dateValue(task.scheduled_for) !== state.today ? `<span>${dayLabel(task.scheduled_for)}</span>` : ''}${task.focus_seconds ? `<span>${duration(task.focus_seconds)}</span>` : ''}</div></div><div class="task-actions">${!task.completed_at ? `<button class="icon-button" data-action="focus-task" data-id="${task.id}" aria-label="Fokus für ${escapeHtml(task.title)}" title="Fokus">${icon(running ? 'timer' : 'play')}</button>` : ''}<button class="icon-button delete-task" data-action="delete-task" data-id="${task.id}" aria-label="${escapeHtml(task.title)} löschen" title="Löschen">${icon('trash')}</button></div></li>`;
 }
 function taskSection(title, tasks, emptyText, addDate) {
-    return `<section class="section"><div class="section-heading"><h2>${title}<span class="count">${tasks.length}</span></h2></div>${tasks.length ? `<ul class="task-list">${tasks.map(t => taskRow(t)).join('')}</ul>` : `<p class="empty-small">${emptyText}</p>`}${addDate !== undefined ? `<form class="quick-add" data-date="${addDate || ''}"><input name="title" aria-label="Neue Aufgabe für ${title}" placeholder="Neue Aufgabe" maxlength="200" required autocomplete="off"><button class="button subtle" type="submit" aria-label="Aufgabe hinzufügen">+</button></form>` : ''}</section>`;
+    return `<section class="section" ${addDate !== undefined ? `data-drop-date="${addDate || ''}"` : ''}><div class="section-heading"><h2>${title}<span class="count">${tasks.length}</span></h2></div>${tasks.length ? `<ul class="task-list">${tasks.map(t => taskRow(t)).join('')}</ul>` : `<p class="empty-small">${emptyText}</p>`}${addDate !== undefined ? `<form class="quick-add" data-date="${addDate || ''}"><input name="title" aria-label="Neue Aufgabe für ${title}" placeholder="Neue Aufgabe" maxlength="200" required autocomplete="off"><button class="button subtle" type="submit" aria-label="Aufgabe hinzufügen">+</button></form>` : ''}</section>`;
 }
 function todayScreen() {
     const today = state.tasks.filter(t => dateValue(t.scheduled_for) === state.today && !t.completed_at);
@@ -121,7 +121,7 @@ function weekScreen() {
     const start = weekStart();
     const end = new Date(start); end.setDate(end.getDate()+6);
     const days = Array.from({length:7},(_,i) => {const d=new Date(start); d.setDate(d.getDate()+i); return d;});
-    return header('Woche', `<div class="week-nav"><button class="icon-button" data-action="previous-week" aria-label="Vorherige Woche">${icon('chevron-left')}</button><span class="week-title">${dayLabel(dateKey(start))} – ${dayLabel(dateKey(end))}</span><button class="icon-button" data-action="next-week" aria-label="Nächste Woche">${icon('chevron-right')}</button><button class="button small subtle" data-action="current-week">Heute</button></div>`) + `<div class="week-grid" role="region" aria-label="Wochenplanung, bei Bedarf seitlich scrollen" tabindex="0">${days.map(d => {const key=dateKey(d);const tasks=state.tasks.filter(t=>dateValue(t.scheduled_for)===key);return `<section class="day ${key===state.today?'current':''}"><div class="day-heading"><span>${d.toLocaleDateString('de-DE',{weekday:'short'})}</span><strong>${d.getDate()}</strong></div>${tasks.length?`<ul class="task-list">${tasks.map(t=>taskRow(t,true)).join('')}</ul>`:'<p class="empty-small">Keine Aufgaben.</p>'}<button class="day-add" data-action="new-task" data-date="${key}">+ Aufgabe</button></section>`;}).join('')}</div><p class="review-note">Aufgabe anklicken, um den Termin zu ändern.</p>`;
+    return header('Woche', `<div class="week-nav"><button class="icon-button" data-action="previous-week" aria-label="Vorherige Woche">${icon('chevron-left')}</button><span class="week-title">${dayLabel(dateKey(start))} – ${dayLabel(dateKey(end))}</span><button class="icon-button" data-action="next-week" aria-label="Nächste Woche">${icon('chevron-right')}</button><button class="button small subtle" data-action="current-week">Heute</button></div>`) + `<div class="week-grid" role="region" aria-label="Wochenplanung, bei Bedarf seitlich scrollen" tabindex="0">${days.map(d => {const key=dateKey(d);const tasks=state.tasks.filter(t=>dateValue(t.scheduled_for)===key);return `<section class="day ${key===state.today?'current':''}" data-drop-date="${key}"><div class="day-heading"><span>${d.toLocaleDateString('de-DE',{weekday:'short'})}</span><strong>${d.getDate()}</strong></div>${tasks.length?`<ul class="task-list">${tasks.map(t=>taskRow(t,true)).join('')}</ul>`:'<p class="empty-small">Keine Aufgaben.</p>'}<button class="day-add" data-action="new-task" data-date="${key}">+ Aufgabe</button></section>`;}).join('')}</div><p class="review-note">Am Griff ziehen, um Aufgaben zu sortieren oder auf einen anderen Tag zu verschieben. Alternativ Aufgabe anklicken und Termin ändern.</p>`;
 }
 function questsScreen() {
     const quests=state.quests.filter(q=>Boolean(q.completed_at)===showCompletedQuests);
@@ -255,43 +255,136 @@ async function persistTaskOrder(visibleIds, movedId, targetId) {
     document.querySelector('#reorder-status').textContent='Aufgabenreihenfolge gespeichert.';
 }
 function listTaskIds(list) { return Array.from(list.querySelectorAll('[data-task-id]'),row=>Number(row.dataset.taskId)); }
+// Destination insertion keeps every task ID and does not change local state before saving.
+function droppedTaskIds(allIds, destinationIds, movedId, beforeId) {
+    const ids=allIds.filter(id=>id!==movedId);
+    const destination=destinationIds.filter(id=>id!==movedId);
+    let index=beforeId===null ? -1 : ids.indexOf(beforeId);
+    if(index<0) index=destination.length ? ids.indexOf(destination[destination.length-1])+1 : ids.length;
+    ids.splice(index,0,movedId);
+    return ids;
+}
+async function persistTaskDrop(drag) {
+    const movedId=Number(drag.row.dataset.taskId);
+    const task=state.tasks.find(task=>task.id===movedId);
+    const scheduledFor=drag.zone ? drag.zone.dataset.dropDate || null : dateValue(task.scheduled_for);
+    const allIds=state.tasks.map(task=>task.id);
+    const destinationIds=listTaskIds(drag.zone || drag.list);
+    const sameDate=dateValue(task.scheduled_for)===scheduledFor;
+    let orderedIds;
+    if(sameDate && destinationIds.includes(movedId)) {
+        const visible=destinationIds.filter(id=>id!==movedId);
+        const index=drag.beforeId===null ? visible.length : visible.indexOf(drag.beforeId);
+        visible.splice(index<0?visible.length:index,0,movedId);
+        let slot=0;
+        orderedIds=allIds.map(id=>destinationIds.includes(id)?visible[slot++]:id);
+    } else orderedIds=droppedTaskIds(allIds,destinationIds,movedId,drag.beforeId);
+    if(sameDate && orderedIds.every((id,index)=>id===allIds[index])) return;
+    await mutate('/api/tasks/reorder','POST',{task_ids:orderedIds,...(!sameDate?{moved_task_id:movedId,scheduled_for:scheduledFor}:{})});
+    document.querySelector('#reorder-status').textContent=sameDate?'Aufgabenreihenfolge gespeichert.':'Aufgabe verschoben und Reihenfolge gespeichert.';
+}
 function cancelTaskDrag() {
     if(!taskDrag) return;
-    taskDrag.row.classList.remove('dragging');
-    taskDrag.target?.classList.remove('drop-target');
-    const handle=taskDrag.handle,pointerId=taskDrag.pointerId;
+    const drag=taskDrag;
     taskDrag=null;
-    if(handle.hasPointerCapture?.(pointerId)) handle.releasePointerCapture(pointerId);
+    cancelAnimationFrame(drag.raf);
+    drag.ghost?.remove();
+    drag.marker?.remove();
+    drag.row.classList.remove('drag-placeholder');
+    drag.zone?.classList.remove('drop-day-active');
+    document.body.classList.remove('task-drag-active');
+    screen.querySelectorAll('[data-drop-date]').forEach(zone=>zone.classList.remove('drop-day-available'));
+    if(drag.handle.hasPointerCapture?.(drag.pointerId)) drag.handle.releasePointerCapture(drag.pointerId);
+}
+function updateTaskDrop(drag) {
+    const hit=document.elementFromPoint(drag.x,drag.y);
+    const zone=hit?.closest('[data-drop-date]');
+    const sameList=hit?.closest('.task-list')===drag.list;
+    drag.zone?.classList.remove('drop-day-active');
+    drag.zone=zone || null;
+    drag.valid=Boolean(zone || sameList);
+    drag.zone?.classList.add('drop-day-active');
+    drag.marker.remove();
+    drag.beforeId=null;
+    if(!drag.valid) return;
+    const scope=zone || drag.list;
+    const rows=Array.from(scope.querySelectorAll('[data-task-id]')).filter(row=>row!==drag.row);
+    const before=rows.find(row=>{const rect=row.getBoundingClientRect();return drag.y<rect.top+rect.height/2;});
+    drag.beforeId=before ? Number(before.dataset.taskId) : null;
+    const list=scope.matches('.task-list')?scope:scope.querySelector('.task-list');
+    if(before) before.before(drag.marker);
+    else if(list) list.append(drag.marker);
+    else scope.querySelector('.empty-small').before(drag.marker);
+}
+function taskDragFrame() {
+    const drag=taskDrag;
+    if(!drag?.active) return;
+    drag.ghost.style.transform='translate3d('+(drag.x-drag.offsetX)+'px,'+(drag.y-drag.offsetY)+'px,0)';
+    const edgeSpeed=(position,start,end)=>position<start+48?-Math.ceil((start+48-position)/4):position>end-48?Math.ceil((position-end+48)/4):0;
+    if(drag.x>=0 && drag.x<=window.innerWidth && drag.y>=0 && drag.y<=window.innerHeight) {
+        const week=screen.querySelector('.week-grid');
+        if(week) {
+            const rect=week.getBoundingClientRect();
+            if(drag.y>=rect.top && drag.y<=rect.bottom) week.scrollLeft+=Math.max(-16,Math.min(16,edgeSpeed(drag.x,Math.max(0,rect.left),Math.min(window.innerWidth,rect.right))));
+        }
+        window.scrollBy(0,Math.max(-16,Math.min(16,edgeSpeed(drag.y,0,window.innerHeight))));
+    }
+    updateTaskDrop(drag);
+    drag.raf=requestAnimationFrame(taskDragFrame);
 }
 document.addEventListener('pointerdown',event=>{
     const handle=event.target.closest('.task-handle');
-    if(!handle || mutationPending || event.button!==0) return;
+    if(!handle || mutationPending || taskDrag || event.button!==0 || event.isPrimary===false) return;
     const row=handle.closest('[data-task-id]'),list=row.closest('.task-list');
-    taskDrag={handle,row,list,pointerId:event.pointerId,startX:event.clientX,startY:event.clientY,active:false,target:null};
+    const rect=row.getBoundingClientRect();
+    taskDrag={handle,row,list,pointerId:event.pointerId,startX:event.clientX,startY:event.clientY,x:event.clientX,y:event.clientY,offsetX:event.clientX-rect.left,offsetY:event.clientY-rect.top,active:false,zone:null,valid:false,raf:null};
     ++refreshSequence;
     handle.setPointerCapture(event.pointerId);
 });
 document.addEventListener('pointermove',event=>{
-    if(!taskDrag || taskDrag.pointerId!==event.pointerId) return;
-    if(!taskDrag.active && Math.hypot(event.clientX-taskDrag.startX,event.clientY-taskDrag.startY)<6) return;
-    taskDrag.active=true;
-    taskDrag.row.classList.add('dragging');
-    const target=document.elementFromPoint(event.clientX,event.clientY)?.closest('[data-task-id]');
-    taskDrag.target?.classList.remove('drop-target');
-    taskDrag.target=target?.closest('.task-list')===taskDrag.list?target:null;
-    taskDrag.target?.classList.add('drop-target');
+    const drag=taskDrag;
+    if(!drag || drag.pointerId!==event.pointerId) return;
+    drag.x=event.clientX;drag.y=event.clientY;
+    if(!drag.active && Math.hypot(drag.x-drag.startX,drag.y-drag.startY)<6) return;
+    if(!drag.active) {
+        drag.active=true;
+        const rect=drag.row.getBoundingClientRect();
+        drag.ghost=drag.row.cloneNode(true);
+        drag.ghost.removeAttribute('data-task-id');
+        drag.ghost.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+        drag.ghost.classList.add('task-drag-ghost');
+        if(drag.row.closest('.day')) drag.ghost.classList.add('task-drag-compact');
+        drag.ghost.style.width=rect.width+'px';
+        drag.ghost.style.height=rect.height+'px';
+        drag.ghost.setAttribute('aria-hidden','true');
+        drag.ghost.inert=true;
+        document.body.append(drag.ghost);
+        drag.marker=document.createElement('li');
+        drag.marker.className='task-insertion-marker';
+        drag.marker.setAttribute('aria-hidden','true');
+        drag.row.classList.add('drag-placeholder');
+        document.body.classList.add('task-drag-active');
+        screen.querySelectorAll('[data-drop-date]').forEach(zone=>zone.classList.add('drop-day-available'));
+        taskDragFrame();
+    } else {
+        drag.ghost.style.transform='translate3d('+(drag.x-drag.offsetX)+'px,'+(drag.y-drag.offsetY)+'px,0)';
+        updateTaskDrop(drag);
+    }
     event.preventDefault();
 });
 document.addEventListener('pointerup',async event=>{
     if(!taskDrag || taskDrag.pointerId!==event.pointerId) return;
-    const drag=taskDrag,ids=listTaskIds(drag.list);
+    const drag=taskDrag;
+    if(drag.active) {drag.x=event.clientX;drag.y=event.clientY;updateTaskDrop(drag);}
     cancelTaskDrag();
-    if(!drag.active || !drag.target) return;
-    try { await persistTaskOrder(ids,Number(drag.row.dataset.taskId),Number(drag.target.dataset.taskId)); }
+    if(!drag.active || !drag.valid) return;
+    try { await persistTaskDrop(drag); }
     catch(error) { showError(error.message); }
 });
-document.addEventListener('pointercancel',cancelTaskDrag);
-document.addEventListener('lostpointercapture',cancelTaskDrag);
+const cancelPointerDrag=event=>{if(taskDrag?.pointerId===event.pointerId) cancelTaskDrag();};
+document.addEventListener('pointercancel',cancelPointerDrag);
+document.addEventListener('lostpointercapture',cancelPointerDrag);
+window.addEventListener('blur',cancelTaskDrag);
 document.addEventListener('keydown',async event=>{
     if(event.key==='Escape' && taskDrag) {cancelTaskDrag();return;}
     const handle=event.target?.closest?.('.task-handle');
@@ -336,7 +429,7 @@ function pwaError(error) {
     output.hidden = false;
 }
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=8').then(registration => {
+    navigator.serviceWorker.register('/sw.js?v=9').then(registration => {
         const watch = () => {
             const worker = registration.installing;
             worker?.addEventListener('statechange', () => {

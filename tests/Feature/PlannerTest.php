@@ -51,6 +51,40 @@ class PlannerTest extends TestCase
         $this->assertDatabaseHas('tasks', ['id' => $a->id, 'scheduled_for' => '2026-11-18']);
     }
 
+    public function test_drag_to_another_day_saves_date_and_order_together_without_stopping_focus(): void
+    {
+        $user = User::factory()->create();
+        $a = Task::factory()->create(['user_id' => $user->id, 'position' => 1, 'scheduled_for' => '2026-11-18']);
+        $b = Task::factory()->create(['user_id' => $user->id, 'position' => 2, 'scheduled_for' => '2026-11-19']);
+        $this->actingAs($user);
+        $session = $this->postJson('/api/focus', ['task_id' => $a->id])->assertCreated()->json('id');
+        $this->postJson('/api/tasks/reorder', ['task_ids' => [$b->id, $a->id], 'moved_task_id' => $a->id, 'scheduled_for' => '2026-11-19'])->assertOk();
+        $this->getJson('/api/state')->assertJsonPath('tasks.1.id', $a->id)->assertJsonPath('tasks.1.scheduled_for', '2026-11-19')->assertJsonPath('focus.id', $session);
+        $this->postJson('/api/tasks/reorder', ['task_ids' => [$a->id, $b->id], 'moved_task_id' => $a->id, 'scheduled_for' => null])->assertOk();
+        $this->getJson('/api/state')->assertJsonPath('tasks.0.id', $a->id)->assertJsonPath('tasks.0.scheduled_for', null);
+    }
+
+    public function test_invalid_drag_cannot_partially_change_date_or_order(): void
+    {
+        $user = User::factory()->create();
+        $task = Task::factory()->create(['user_id' => $user->id, 'position' => 9, 'scheduled_for' => '2026-11-18']);
+        $foreign = Task::factory()->create(['position' => 8]);
+        $this->actingAs($user);
+        $payloads = [
+            ['task_ids' => [$task->id, $foreign->id], 'moved_task_id' => $task->id, 'scheduled_for' => '2026-11-19'],
+            ['task_ids' => [$task->id], 'moved_task_id' => $foreign->id, 'scheduled_for' => null],
+            ['task_ids' => [$task->id], 'moved_task_id' => $task->id],
+            ['task_ids' => [$task->id], 'scheduled_for' => null],
+            ['task_ids' => [$task->id], 'scheduled_for' => '2026-11-19'],
+            ['task_ids' => [$task->id], 'moved_task_id' => $task->id, 'scheduled_for' => '2026-02-31'],
+        ];
+        foreach ($payloads as $payload) {
+            $this->postJson('/api/tasks/reorder', $payload)->assertUnprocessable();
+        }
+        $this->assertDatabaseHas('tasks', ['id' => $task->id, 'position' => 9, 'scheduled_for' => '2026-11-18']);
+        $this->assertDatabaseHas('tasks', ['id' => $foreign->id, 'position' => 8]);
+    }
+
     public function test_guest_cannot_read_or_write_planner(): void
     {
         $this->getJson('/api/state')->assertUnauthorized();
