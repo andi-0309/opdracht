@@ -7,7 +7,7 @@ const editorForm = document.querySelector('#editor-form');
 const confirmDialog = document.querySelector('#confirm-dialog');
 const csrf = document.querySelector('meta[name="csrf-token"]').content;
 let state = null;
-let page = 'today';
+let page = 'focus';
 let weekOffset = 0;
 let showCompletedQuests = false;
 let selectedTaskId = null;
@@ -15,8 +15,28 @@ let editorSave = null;
 let refreshSequence = 0;
 let mutationPending = false;
 let serverClockOffset = 0;
+const immersiveDialog = document.querySelector('#focus-dialog');
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function icon(name) {
+    const id=/^[a-z-]+$/.test(name) ? name : 'target';
+    return `<svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/icons/ui.svg?v=6#${id}"></use></svg>`;
+}
 const color = value => /^#[0-9a-f]{6}$/i.test(value || '') ? value : '#789469';
+const planningColors = [
+    {name:'Salbei', value:'#789469'},
+    {name:'Ozean', value:'#6289a6'},
+    {name:'Lavendel', value:'#9180ad'},
+    {name:'Beere', value:'#ad738c'},
+    {name:'Terrakotta', value:'#b87960'},
+    {name:'Honig', value:'#b69a52'},
+    {name:'Petrol', value:'#578f89'},
+    {name:'Schiefer', value:'#7c8794'},
+];
+function colorChoices(value) {
+    const selected=color(value).toLowerCase();
+    const choices=planningColors.some(choice=>choice.value===selected) ? planningColors : [...planningColors,{name:'Bisherige Farbe',value:selected}];
+    return `<fieldset class="color-palette"><legend>Farbe</legend><div class="color-options">${choices.map(choice=>`<label class="color-choice"><input type="radio" name="color" value="${choice.value}" ${choice.value===selected?'checked':''} required><span class="color-option"><span class="color-swatch" style="--choice-color:${choice.value}" aria-hidden="true"></span><span>${choice.name}</span><span class="color-check" aria-hidden="true">✓</span></span></label>`).join('')}</div></fieldset>`;
+}
 const dateValue = value => value ? String(value).slice(0, 10) : null;
 const localDate = value => new Date(`${dateValue(value)}T12:00:00`);
 const dateKey = date => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
@@ -32,7 +52,11 @@ async function api(path, method = 'GET', body) {
     if (!response.ok) { throw new Error(data.errors ? Object.values(data.errors).flat().join(' ') : data.message || 'Die Änderung konnte nicht gespeichert werden.'); }
     return data;
 }
-function showError(message) { notice.hidden = false; notice.textContent = message; }
+function showError(message) {
+    notice.hidden = false; notice.textContent = message;
+    const immersiveNotice=document.querySelector('#immersive-notice');
+    immersiveNotice.hidden=false; immersiveNotice.textContent=message;
+}
 async function refresh(quiet = false) {
     const sequence = ++refreshSequence;
     try {
@@ -44,6 +68,7 @@ async function refresh(quiet = false) {
         state.quests = data.quests || [];
         state.weekly = data.weekly || {seconds:0, completed:0};
         notice.hidden = true;
+        document.querySelector('#immersive-notice').hidden=true;
         setConnection('Verbunden', false);
         render();
         return true;
@@ -78,7 +103,7 @@ function stats() {
 }
 function taskRow(task, compact = false) {
     const running = state.focus?.task_id === task.id;
-    return `<li class="task ${task.completed_at ? 'done' : ''}"><button class="task-check" role="checkbox" aria-checked="${Boolean(task.completed_at)}" aria-label="${escapeHtml(task.completed_at ? 'Wieder öffnen: ' : 'Erledigen: ')}${escapeHtml(task.title)}" data-action="toggle-task" data-id="${task.id}">${task.completed_at ? '✓' : ''}</button><div class="task-body"><button class="task-title" data-action="edit-task" data-id="${task.id}">${escapeHtml(task.title)}</button><div class="task-meta">${tag(taskQuest(task))}${!compact && task.scheduled_for && dateValue(task.scheduled_for) !== state.today ? `<span>${dayLabel(task.scheduled_for)}</span>` : ''}${task.focus_seconds ? `<span>${duration(task.focus_seconds)}</span>` : ''}</div></div><div class="task-actions">${!task.completed_at ? `<button class="icon-button" data-action="focus-task" data-id="${task.id}" aria-label="Fokus für ${escapeHtml(task.title)}" title="Fokus">${running ? '◷' : '▷'}</button>` : ''}<button class="icon-button delete-task" data-action="delete-task" data-id="${task.id}" aria-label="${escapeHtml(task.title)} löschen" title="Löschen">×</button></div></li>`;
+    return `<li class="task ${task.completed_at ? 'done' : ''}"><button class="task-check" role="checkbox" aria-checked="${Boolean(task.completed_at)}" aria-label="${escapeHtml(task.completed_at ? 'Wieder öffnen: ' : 'Erledigen: ')}${escapeHtml(task.title)}" data-action="toggle-task" data-id="${task.id}">${task.completed_at ? icon('check') : ''}</button><div class="task-body"><button class="task-title" data-action="edit-task" data-id="${task.id}">${escapeHtml(task.title)}</button><div class="task-meta">${tag(taskQuest(task))}${!compact && task.scheduled_for && dateValue(task.scheduled_for) !== state.today ? `<span>${dayLabel(task.scheduled_for)}</span>` : ''}${task.focus_seconds ? `<span>${duration(task.focus_seconds)}</span>` : ''}</div></div><div class="task-actions">${!task.completed_at ? `<button class="icon-button" data-action="focus-task" data-id="${task.id}" aria-label="Fokus für ${escapeHtml(task.title)}" title="Fokus">${icon(running ? 'timer' : 'play')}</button>` : ''}<button class="icon-button delete-task" data-action="delete-task" data-id="${task.id}" aria-label="${escapeHtml(task.title)} löschen" title="Löschen">${icon('trash')}</button></div></li>`;
 }
 function taskSection(title, tasks, emptyText, addDate) {
     return `<section class="section"><div class="section-heading"><h2>${title}<span class="count">${tasks.length}</span></h2></div>${tasks.length ? `<ul class="task-list">${tasks.map(t => taskRow(t)).join('')}</ul>` : `<p class="empty-small">${emptyText}</p>`}${addDate !== undefined ? `<form class="quick-add" data-date="${addDate || ''}"><input name="title" aria-label="Neue Aufgabe für ${title}" placeholder="Neue Aufgabe" maxlength="200" required autocomplete="off"><button class="button subtle" type="submit" aria-label="Aufgabe hinzufügen">+</button></form>` : ''}</section>`;
@@ -95,18 +120,35 @@ function weekScreen() {
     const start = weekStart();
     const end = new Date(start); end.setDate(end.getDate()+6);
     const days = Array.from({length:7},(_,i) => {const d=new Date(start); d.setDate(d.getDate()+i); return d;});
-    return header('Woche', `<div class="week-nav"><button class="icon-button" data-action="previous-week" aria-label="Vorherige Woche">←</button><span class="week-title">${dayLabel(dateKey(start))} – ${dayLabel(dateKey(end))}</span><button class="icon-button" data-action="next-week" aria-label="Nächste Woche">→</button><button class="button small subtle" data-action="current-week">Heute</button></div>`) + `<div class="week-grid">${days.map(d => {const key=dateKey(d);const tasks=state.tasks.filter(t=>dateValue(t.scheduled_for)===key);return `<section class="day ${key===state.today?'current':''}"><div class="day-heading"><span>${d.toLocaleDateString('de-DE',{weekday:'short'})}</span><strong>${d.getDate()}</strong></div>${tasks.length?`<ul class="task-list">${tasks.map(t=>taskRow(t,true)).join('')}</ul>`:'<p class="empty-small">Keine Aufgaben.</p>'}<button class="day-add" data-action="new-task" data-date="${key}">+ Aufgabe</button></section>`;}).join('')}</div><p class="review-note">Aufgabe anklicken, um den Termin zu ändern.</p>`;
+    return header('Woche', `<div class="week-nav"><button class="icon-button" data-action="previous-week" aria-label="Vorherige Woche">${icon('chevron-left')}</button><span class="week-title">${dayLabel(dateKey(start))} – ${dayLabel(dateKey(end))}</span><button class="icon-button" data-action="next-week" aria-label="Nächste Woche">${icon('chevron-right')}</button><button class="button small subtle" data-action="current-week">Heute</button></div>`) + `<div class="week-grid" role="region" aria-label="Wochenplanung, bei Bedarf seitlich scrollen" tabindex="0">${days.map(d => {const key=dateKey(d);const tasks=state.tasks.filter(t=>dateValue(t.scheduled_for)===key);return `<section class="day ${key===state.today?'current':''}"><div class="day-heading"><span>${d.toLocaleDateString('de-DE',{weekday:'short'})}</span><strong>${d.getDate()}</strong></div>${tasks.length?`<ul class="task-list">${tasks.map(t=>taskRow(t,true)).join('')}</ul>`:'<p class="empty-small">Keine Aufgaben.</p>'}<button class="day-add" data-action="new-task" data-date="${key}">+ Aufgabe</button></section>`;}).join('')}</div><p class="review-note">Aufgabe anklicken, um den Termin zu ändern.</p>`;
 }
 function questsScreen() {
     const quests=state.quests.filter(q=>Boolean(q.completed_at)===showCompletedQuests);
-    return header('Quests', '<button class="button primary" data-action="new-quest">+ Neue Quest</button>') + `<div class="tabs" role="group" aria-label="Quests filtern"><button class="${!showCompletedQuests?'active':''}" data-action="active-quests" aria-pressed="${!showCompletedQuests}">Aktiv · ${state.quests.filter(q=>!q.completed_at).length}</button><button class="${showCompletedQuests?'active':''}" data-action="completed-quests" aria-pressed="${showCompletedQuests}">Abgeschlossen · ${state.quests.filter(q=>q.completed_at).length}</button></div>` + (quests.length ? `<div class="quest-grid">${quests.map(q=>{const tasks=state.tasks.filter(t=>t.quest_id===q.id);const done=tasks.filter(t=>t.completed_at).length;return `<article class="quest-card" style="--quest-color:${color(q.color)}"><div class="quest-top"><span class="quest-icon" aria-hidden="true">◇</span><div><button class="icon-button" data-action="edit-quest" data-id="${q.id}" aria-label="${escapeHtml(q.title)} bearbeiten">✎</button><button class="icon-button" data-action="delete-quest" data-id="${q.id}" aria-label="${escapeHtml(q.title)} löschen">×</button></div></div><h2>${escapeHtml(q.title)}</h2>${q.description ? `<p>${escapeHtml(q.description)}</p>` : ''}<div class="quest-progress"><span style="width:${tasks.length?Math.round(done/tasks.length*100):0}%"></span></div><div class="quest-footer"><span>${done} / ${tasks.length} Aufgaben</span><span>${duration(tasks.reduce((sum,t)=>sum+Number(t.focus_seconds||0),0))} Fokus</span></div></article>`;}).join('')}</div>` : `<div class="empty"><div class="empty-symbol">◇</div><h2>${showCompletedQuests?'Keine abgeschlossenen Quests.':'Keine Quests vorhanden.'}</h2>${!showCompletedQuests?'<button class="button primary" data-action="new-quest">Quest erstellen</button>':''}</div>`);
+    return header('Quests', '<button class="button primary" data-action="new-quest">+ Neue Quest</button>') + `<div class="tabs" role="group" aria-label="Quests filtern"><button class="${!showCompletedQuests?'active':''}" data-action="active-quests" aria-pressed="${!showCompletedQuests}">Aktiv · ${state.quests.filter(q=>!q.completed_at).length}</button><button class="${showCompletedQuests?'active':''}" data-action="completed-quests" aria-pressed="${showCompletedQuests}">Abgeschlossen · ${state.quests.filter(q=>q.completed_at).length}</button></div>` + (quests.length ? `<div class="quest-grid">${quests.map(q=>{const tasks=state.tasks.filter(t=>t.quest_id===q.id);const done=tasks.filter(t=>t.completed_at).length;return `<article class="quest-card" style="--quest-color:${color(q.color)}"><div class="quest-top"><span class="quest-icon" aria-hidden="true">${icon('target')}</span><div><button class="icon-button" data-action="edit-quest" data-id="${q.id}" aria-label="${escapeHtml(q.title)} bearbeiten">${icon('pencil')}</button><button class="icon-button" data-action="delete-quest" data-id="${q.id}" aria-label="${escapeHtml(q.title)} löschen">${icon('trash')}</button></div></div><h2>${escapeHtml(q.title)}</h2>${q.description ? `<p>${escapeHtml(q.description)}</p>` : ''}<div class="quest-progress"><span style="width:${tasks.length?Math.round(done/tasks.length*100):0}%"></span></div><div class="quest-footer"><span>${done} / ${tasks.length} Aufgaben</span><span>${duration(tasks.reduce((sum,t)=>sum+Number(t.focus_seconds||0),0))} Fokus</span></div></article>`;}).join('')}</div>` : `<div class="empty"><div class="empty-symbol">◇</div><h2>${showCompletedQuests?'Keine abgeschlossenen Quests.':'Keine Quests vorhanden.'}</h2>${!showCompletedQuests?'<button class="button primary" data-action="new-quest">Quest erstellen</button>':''}</div>`);
 }
-function focusScreen() {
+function focusPanel(immersive = false) {
     const activeTask=state.tasks.find(t=>t.id===state.focus?.task_id);
     const selected=activeTask || state.tasks.find(t=>t.id===selectedTaskId && !t.completed_at);
     const available=state.tasks.filter(t=>!t.completed_at);
-    return header('Fokus') + `<section class="focus-view">${selected?`${tag(taskQuest(selected))}<h2>${escapeHtml(selected.title)}</h2>`:(available.length?'':'<h2>Keine offenen Aufgaben.</h2>')}${!activeTask && available.length?`<label class="focus-choose">Aufgabe<select id="focus-select"><option value="">Aufgabe auswählen …</option>${available.map(t=>`<option value="${t.id}" ${t.id===selected?.id?'selected':''}>${escapeHtml(t.title)}</option>`).join('')}</select></label>`:''}<div id="timer" class="timer" aria-label="Fokuszeit">00:00</div><p class="timer-label">${activeTask?'LÄUFT':'PAUSIERT'}</p><div class="focus-controls">${activeTask?`<button class="button primary" data-action="stop-focus">Ⅱ Pause</button><button class="button subtle" data-action="finish-focus" data-id="${activeTask.id}">✓ Aufgabe abschließen</button>`:available.length?`<button class="button primary" data-action="start-focus" ${selected?'':'disabled'}>▷ Fokus starten</button>`:'<button class="button primary" data-action="new-task">+ Aufgabe erstellen</button>'}</div><p class="intro">${activeTask?'Der Timer läuft weiter, wenn du die App schließt.':'Beim Pausieren wird die Zeit gespeichert.'}</p></section>`;
+    return `<section class="focus-view"><p class="focus-eyebrow">EINE AUFGABE. DEIN FOKUS.</p>${selected?`${tag(taskQuest(selected))}<h2>${escapeHtml(selected.title)}</h2>`:`<h2>${available.length?'Worauf möchtest du dich konzentrieren?':'Platz für deinen nächsten Schritt.'}</h2>`}${!state.focus && available.length?`<label class="focus-choose">Aufgabe<select id="${immersive?'immersive-focus-select':'focus-select'}"><option value="">Aufgabe auswählen …</option>${available.map(t=>`<option value="${t.id}" ${t.id===selected?.id?'selected':''}>${escapeHtml(t.title)}</option>`).join('')}</select></label>`:''}<div data-focus-timer class="timer" role="timer" aria-live="off" aria-label="Verstrichene Fokuszeit">00:00</div><p class="timer-label" role="status">${state.focus?'FOKUS LÄUFT':'BEREIT FÜR FOKUS'}</p><div class="focus-controls">${state.focus?`<button class="button primary" data-action="stop-focus">${icon('square')} Timer stoppen &amp; Zeit speichern</button>${activeTask?`<button class="button subtle" data-action="finish-focus" data-id="${activeTask.id}">${icon('check')} Aufgabe abschließen</button>`:''}`:available.length?`<button class="button primary" data-action="start-focus" ${selected?'':'disabled'}>${icon('play')} Fokus starten</button>`:'<button class="button primary" data-action="new-task">+ Aufgabe erstellen</button>'}</div>${!immersive?`<button class="button subtle immersive-launch" data-action="enter-immersive" aria-haspopup="dialog">${icon('maximize')} Vollbild-Fokus öffnen</button>`:''}<p class="intro">${state.focus?'Der Timer läuft serverseitig weiter – auch beim Verlassen dieser Ansicht oder Schließen der App.':'Beim Stoppen wird die Zeit auf deinem Server gespeichert.'}</p></section>`;
 }
+function focusScreen() {
+    return header('Fokus', '<a class="button subtle" href="#today">Aufgaben für heute →</a>') + focusPanel();
+}
+function enterImmersive() {
+    document.querySelector('#immersive-content').innerHTML=focusPanel(true);
+    updateTimer();
+    immersiveDialog.showModal();
+    document.body.classList.add('immersive-open');
+    document.querySelector('#exit-immersive').focus();
+}
+immersiveDialog.addEventListener('close',()=>{
+    document.querySelector('#immersive-content').innerHTML='';
+    document.body.classList.remove('immersive-open');
+    const target=screen.querySelector('[data-action="enter-immersive"]') || document.querySelector('[data-page="focus"]');
+    target?.focus({preventScroll:true});
+});
+immersiveDialog.addEventListener('cancel',event=>{event.preventDefault();immersiveDialog.close();});
 function reviewScreen() {
     const quests=state.quests.map(q=>({...q,seconds:state.tasks.filter(t=>t.quest_id===q.id).reduce((sum,t)=>sum+Number(t.focus_seconds||0),0)})).filter(q=>q.seconds>0).sort((a,b)=>b.seconds-a.seconds);
     const total=quests.reduce((sum,q)=>sum+q.seconds,0);
@@ -114,30 +156,42 @@ function reviewScreen() {
 }
 function render() {
     if(!state) return;
-    page=['today','week','quests','focus','review'].includes(location.hash.slice(1))?location.hash.slice(1):'today';
+    page=['today','week','quests','focus','review'].includes(location.hash.slice(1))?location.hash.slice(1):'focus';
     document.querySelectorAll('[data-page]').forEach(link=>{const active=link.dataset.page===page;link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');});
     document.querySelector('#date-label').textContent=localDate(state.today).toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    const focused=document.activeElement;
+    const focusedAction=focused?.dataset.action;
+    const focusedSelect=focused?.id;
+    screen.dataset.page=page;
     screen.innerHTML=({today:todayScreen,week:weekScreen,quests:questsScreen,focus:focusScreen,review:reviewScreen})[page]();
+    if(immersiveDialog.open) document.querySelector('#immersive-content').innerHTML=focusPanel(true);
+    if(focusedAction) {
+        const scope=immersiveDialog.open?immersiveDialog:screen;
+        const target=Array.from(scope.querySelectorAll('[data-action]')).find(button=>button.dataset.action===focusedAction && button.dataset.id===focused.dataset.id);
+        target?.focus({preventScroll:true});
+        if(!target && immersiveDialog.open) document.querySelector('#exit-immersive').focus({preventScroll:true});
+    } else if(focusedSelect==='focus-select'||focusedSelect==='immersive-focus-select') document.getElementById(focusedSelect)?.focus({preventScroll:true});
     updateTimer();
 }
 function updateTimer() {
-    const timer=document.querySelector('#timer');
-    if(!timer) return;
+    const timers=document.querySelectorAll('[data-focus-timer]');
+    if(!timers.length) return;
     const elapsed=state?.focus ? Math.max(0,Math.floor((Date.now()+serverClockOffset-Date.parse(state.focus.started_at))/1000)) : 0;
     const hours=Math.floor(elapsed/3600);
-    timer.textContent=(hours?`${String(hours).padStart(2,'0')}:`:'')+`${String(Math.floor(elapsed/60)%60).padStart(2,'0')}:${String(elapsed%60).padStart(2,'0')}`;
+    timers.forEach(timer=>timer.textContent=(hours?`${String(hours).padStart(2,'0')}:`:'')+`${String(Math.floor(elapsed/60)%60).padStart(2,'0')}:${String(elapsed%60).padStart(2,'0')}`);
 }
 function openEditor(title, fields, onSave) {
     document.querySelector('#editor-title').textContent=title;
     document.querySelector('#editor-fields').innerHTML=fields;
     document.querySelector('#editor-error').hidden=true;
+    if(immersiveDialog.open) immersiveDialog.close();
     editorSave=onSave;editor.showModal();
 }
 function taskEditor(task, date=state.today) {
     openEditor(task?'Aufgabe bearbeiten':'Neue Aufgabe',`<label>Aufgabe<input name="title" value="${escapeHtml(task?.title)}" maxlength="200" required autofocus></label><div class="form-row"><label>Tag<input type="date" name="scheduled_for" value="${escapeHtml(dateValue(task?task.scheduled_for:date))}"></label><label>Quest<select name="quest_id"><option value="">Ohne Quest</option>${state.quests.filter(q=>!q.completed_at || q.id===task?.quest_id).map(q=>`<option value="${q.id}" ${q.id===task?.quest_id?'selected':''}>${escapeHtml(q.title)}</option>`).join('')}</select></label></div><label>Notizen<textarea name="notes" maxlength="10000">${escapeHtml(task?.notes)}</textarea></label>${task?`<label class="check-label"><input type="checkbox" name="completed" ${task.completed_at?'checked':''}> Aufgabe abgeschlossen</label><button type="button" class="text-button" data-action="delete-task" data-id="${task.id}">Aufgabe löschen</button>`:''}`,async data=>{await mutate(task?`/api/tasks/${task.id}`:'/api/tasks',task?'PATCH':'POST',{title:data.get('title'),notes:data.get('notes'),scheduled_for:data.get('scheduled_for')||null,quest_id:data.get('quest_id')?Number(data.get('quest_id')):null,...(task?{completed:data.has('completed')}:{})});});
 }
 function questEditor(quest) {
-    openEditor(quest?'Quest bearbeiten':'Neue Quest',`<label>Titel<input name="title" value="${escapeHtml(quest?.title)}" maxlength="200" required autofocus></label><label>Beschreibung<textarea name="description" maxlength="10000">${escapeHtml(quest?.description)}</textarea></label><label>Farbe<input type="color" name="color" value="${color(quest?.color)}"></label>${quest?`<label class="check-label"><input type="checkbox" name="completed" ${quest.completed_at?'checked':''}> Quest abgeschlossen</label>`:''}`,async data=>{await mutate(quest?`/api/quests/${quest.id}`:'/api/quests',quest?'PATCH':'POST',{title:data.get('title'),description:data.get('description'),color:data.get('color'),...(quest?{completed:data.has('completed')}:{})});});
+    openEditor(quest?'Quest bearbeiten':'Neue Quest',`<label>Titel<input name="title" value="${escapeHtml(quest?.title)}" maxlength="200" required autofocus></label><label>Beschreibung<textarea name="description" maxlength="10000">${escapeHtml(quest?.description)}</textarea></label>${colorChoices(quest?.color)}${quest?`<label class="check-label"><input type="checkbox" name="completed" ${quest.completed_at?'checked':''}> Quest abgeschlossen</label>`:''}`,async data=>{await mutate(quest?`/api/quests/${quest.id}`:'/api/quests',quest?'PATCH':'POST',{title:data.get('title'),description:data.get('description'),color:data.get('color'),...(quest?{completed:data.has('completed')}:{})});});
 }
 function confirmDelete(text) {
     return new Promise(resolve=>{document.querySelector('#confirm-text').textContent=text;confirmDialog.returnValue='cancel';confirmDialog.addEventListener('close',()=>resolve(confirmDialog.returnValue==='delete'),{once:true});confirmDialog.showModal();});
@@ -148,6 +202,8 @@ document.addEventListener('click',async event=>{
     const action=button.dataset.action,id=Number(button.dataset.id);
     const task=state?.tasks.find(t=>t.id===id),quest=state?.quests.find(q=>q.id===id);
     try {
+        if(action==='exit-immersive') return immersiveDialog.close();
+        if(action==='enter-immersive'&&state) return enterImmersive();
         if(action==='retry') return await refresh();
         if(!state) return;
         if(action==='new-task') return taskEditor(null,button.dataset.date||state.today);
@@ -163,7 +219,7 @@ document.addEventListener('click',async event=>{
         if(action==='toggle-task'&&task) await mutate(`/api/tasks/${id}`,'PATCH',{completed:!task.completed_at});
         if(action==='delete-task'&&task&&await confirmDelete(`„${task.title}“ wird dauerhaft gelöscht. Bereits gespeicherte Fokuszeiten bleiben im Rückblick erhalten.`)){await mutate(`/api/tasks/${id}`,'DELETE');editor.close();}
         if(action==='delete-quest'&&quest&&await confirmDelete(`„${quest.title}“ löschen? Die Aufgaben bleiben erhalten und werden keiner Quest mehr zugeordnet.`)) await mutate(`/api/quests/${id}`,'DELETE');
-        if(action==='start-focus'&&selectedTaskId) await mutate('/api/focus','POST',{task_id:selectedTaskId});
+        if(action==='start-focus'&&selectedTaskId){await mutate('/api/focus','POST',{task_id:selectedTaskId});if(state.focus&&!immersiveDialog.open)enterImmersive();}
         if(action==='stop-focus'&&state.focus) await mutate('/api/focus/stop','POST',{session_id:state.focus.id});
         if(action==='finish-focus'&&state.focus){await mutate(`/api/tasks/${id}`,'PATCH',{completed:true});selectedTaskId=null;render();}
     } catch(error) { showError(error.message); }
@@ -183,7 +239,7 @@ editorForm.addEventListener('submit',async event=>{
     catch(error){const output=document.querySelector('#editor-error');output.textContent=error.message;output.hidden=false;}
     finally{submit.disabled=false;}
 });
-document.addEventListener('change',event=>{if(event.target.id==='focus-select'){selectedTaskId=Number(event.target.value)||null;render();}});
+document.addEventListener('change',event=>{if(event.target.id==='focus-select'||event.target.id==='immersive-focus-select'){selectedTaskId=Number(event.target.value)||null;render();}});
 function setConnection(label, unavailable) { document.querySelector('.connection').classList.toggle('offline', unavailable); document.querySelector('#connection-text').textContent=label; }
 function connectionChanged(){const online=navigator.onLine;setConnection(online?'Verbinde …':'Offline',!online);if(!online)showError('Du bist offline. Angezeigte Daten können veraltet sein. Änderungen benötigen eine Verbindung.');else if(state)refresh();}
 window.addEventListener('online',connectionChanged);window.addEventListener('offline',connectionChanged);
@@ -201,7 +257,7 @@ function pwaError(error) {
     output.hidden = false;
 }
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=5').then(registration => {
+    navigator.serviceWorker.register('/sw.js?v=6').then(registration => {
         const watch = () => {
             const worker = registration.installing;
             worker?.addEventListener('statechange', () => {

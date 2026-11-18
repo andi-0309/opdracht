@@ -3,6 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check public/app.js && node --check public/sw.js"
+    "check": "node --check public/app.js && node --check public/theme.js && node --check public/sw.js && node --test tests/Unit/ui.test.mjs"
   }
 }

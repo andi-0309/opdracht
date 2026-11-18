@@ -9,32 +9,38 @@
     <link rel="manifest" href="/manifest.webmanifest?v=5">
     <link rel="icon" href="/icons/icon.svg?v=5" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=5">
-    <script src="/theme.js?v=5"></script>
-    <link rel="stylesheet" href="/app.css?v=5">
-    <script src="/app.js?v=5" defer></script>
+    <script src="/theme.js?v=6"></script>
+    <link rel="stylesheet" href="/app.css?v=6">
+    <script src="/app.js?v=6" defer></script>
     <title>Opdracht</title>
 </head>
 <body>
 <a class="skip" href="#content">Zum Inhalt</a>
 <div class="app-layout">
     <aside class="sidebar">
-        <a class="brand" href="#today" aria-label="Opdracht Start"><span class="brand-mark">o</span>opdracht<span class="brand-dot">.</span></a>
+        <a class="brand" href="#focus" aria-label="Opdracht Start – Fokus"><span class="brand-mark">o</span>opdracht<span class="brand-dot">.</span></a>
         <nav class="nav" aria-label="Hauptnavigation">
-            <a href="#today" data-page="today"><span aria-hidden="true">◉</span> Heute</a>
-            <a href="#week" data-page="week"><span aria-hidden="true">▦</span> Woche</a>
-            <a href="#quests" data-page="quests"><span aria-hidden="true">◇</span> Quests</a>
-            <a href="#focus" data-page="focus"><span aria-hidden="true">◷</span> Fokus</a>
-            <a href="#review" data-page="review"><span aria-hidden="true">↗</span> Rückblick</a>
+            <a class="nav-focus" href="#focus" data-page="focus"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/icons/ui.svg?v=6#timer"></use></svg> Fokus</a>
+            <a href="#today" data-page="today"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/icons/ui.svg?v=6#sun"></use></svg> Heute</a>
+            <a href="#week" data-page="week"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/icons/ui.svg?v=6#calendar-days"></use></svg> Woche</a>
+            <a href="#quests" data-page="quests"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/icons/ui.svg?v=6#target"></use></svg> Quests</a>
+            <a href="#review" data-page="review"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/icons/ui.svg?v=6#chart-column"></use></svg> Rückblick</a>
         </nav>
-        <div class="sidebar-bottom"><form action="/logout" method="post">@csrf<button class="text-button" type="submit">Abmelden <span aria-hidden="true">↗</span></button></form></div>
+        <div class="sidebar-bottom"><form action="/logout" method="post">@csrf<button class="text-button" type="submit">Abmelden <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/icons/ui.svg?v=6#log-out"></use></svg></button></form></div>
     </aside>
     <main id="content" tabindex="-1">
-        <div class="topbar"><span id="date-label">Opdracht</span><div class="topbar-actions"><label class="theme-picker"><span class="sr-only">Darstellung</span><select data-theme-select aria-label="Darstellung"><option value="system">System</option><option value="light">Hell</option><option value="dark">Dunkel</option></select></label><button id="install" class="text-button" hidden>Installieren ↗</button><span class="connection"><i></i><span id="connection-text">Verbunden</span></span><form class="mobile-logout" action="/logout" method="post">@csrf<button class="icon-button" type="submit" aria-label="Abmelden" title="Abmelden">↗</button></form></div></div>
+        <div class="topbar"><span id="date-label">Opdracht</span><div class="topbar-actions"><button id="install" class="text-button" hidden>Installieren ↗</button><span class="connection"><i></i><span id="connection-text">Verbunden</span></span><form class="mobile-logout" action="/logout" method="post">@csrf<button class="icon-button" type="submit" aria-label="Abmelden" title="Abmelden"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/icons/ui.svg?v=6#log-out"></use></svg></button></form></div></div>
         <div id="notice" class="notice" role="alert" hidden></div><div id="pwa-notice" class="notice" role="status" hidden></div>
-        <div id="screen" aria-live="polite"><div class="empty"><div class="empty-symbol">◌</div><p>Aufgaben werden geladen …</p></div></div>
+        <div id="screen"><div class="empty"><div class="empty-symbol">◌</div><p>Aufgaben werden geladen …</p></div></div>
     </main>
 </div>
-<dialog id="editor" aria-labelledby="editor-title"><form id="editor-form"><div class="dialog-header"><h2 id="editor-title"></h2><button type="button" class="icon-button" data-close aria-label="Dialog schließen">×</button></div><div id="editor-fields"></div><p id="editor-error" class="form-error" role="alert" hidden></p><div class="dialog-actions"><button type="button" class="button subtle" data-close>Abbrechen</button><button type="submit" class="button primary">Speichern</button></div></form></dialog>
+<dialog id="focus-dialog" class="immersive-dialog" aria-labelledby="immersive-title" aria-describedby="immersive-exit-hint">
+    <header class="immersive-header"><h2 id="immersive-title">Vollbild-Fokus</h2><button id="exit-immersive" class="button subtle" data-action="exit-immersive" autofocus><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/icons/ui.svg?v=6#x"></use></svg> Vollbild verlassen</button></header>
+    <p id="immersive-exit-hint" class="immersive-exit-hint">Esc oder „Vollbild verlassen“ schließt nur diese Ansicht. Ein laufender Timer läuft weiter.</p>
+    <div id="immersive-notice" class="notice" role="alert" hidden></div>
+    <div id="immersive-content"></div>
+</dialog>
+<dialog id="editor" aria-labelledby="editor-title"><form id="editor-form"><div class="dialog-header"><h2 id="editor-title"></h2><button type="button" class="icon-button" data-close aria-label="Dialog schließen"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/icons/ui.svg?v=6#x"></use></svg></button></div><div id="editor-fields"></div><p id="editor-error" class="form-error" role="alert" hidden></p><div class="dialog-actions"><button type="button" class="button subtle" data-close>Abbrechen</button><button type="submit" class="button primary">Speichern</button></div></form></dialog>
 <dialog id="confirm-dialog" aria-labelledby="confirm-title"><form method="dialog"><h2 id="confirm-title">Wirklich löschen?</h2><p id="confirm-text"></p><div class="dialog-actions"><button class="button subtle" value="cancel">Abbrechen</button><button class="button danger" value="delete">Löschen</button></div></form></dialog>
 </body>
 </html>

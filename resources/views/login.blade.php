@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="de">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f7f8f2"><link rel="manifest" href="/manifest.webmanifest?v=5"><link rel="icon" href="/icons/icon.svg?v=5" type="image/svg+xml"><link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=5"><script src="/theme.js?v=5"></script><link rel="stylesheet" href="/app.css?v=5"><title>Anmelden · Opdracht</title></head>
-<body class="login-body"><div class="appearance"><label class="theme-picker"><span class="sr-only">Darstellung</span><select data-theme-select aria-label="Darstellung"><option value="system">System</option><option value="light">Hell</option><option value="dark">Dunkel</option></select></label></div><main class="login-wrap"><a class="brand" href="/"><span class="brand-mark">o</span>opdracht<span class="brand-dot">.</span></a><div class="login-card"><h1>Anmelden</h1>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f7f8f2"><link rel="manifest" href="/manifest.webmanifest?v=5"><link rel="icon" href="/icons/icon.svg?v=5" type="image/svg+xml"><link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=5"><script src="/theme.js?v=6"></script><link rel="stylesheet" href="/app.css?v=6"><title>Anmelden · Opdracht</title></head>
+<body class="login-body"><main class="login-wrap"><a class="brand" href="/"><span class="brand-mark">o</span>opdracht<span class="brand-dot">.</span></a><div class="login-card"><h1>Anmelden</h1>
 @if(session('status'))<p class="notice">{{ session('status') }}</p>@endif
 @if($errors->any())<p class="form-error" role="alert">{{ $errors->first() }}</p>@endif
 @if(config('oidc.enabled'))
