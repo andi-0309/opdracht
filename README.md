@@ -222,7 +222,7 @@ Der Workflow **Website shell** erzeugt bei `v*`-Tags oder manuellem Start mit Fl
 
 - `Opdracht-Android.apk`: direkt installierbares Release-APK.
 - `Opdracht-Windows-x64.zip`: komplette Anwendung inklusive ihrer Flutter-Bibliotheken. Das ZIP vollständig entpacken; Microsoft Edge WebView2 Runtime muss installiert sein.
-- `Opdracht-macOS-universal.zip`: ad-hoc signierte `.app` für Intel und Apple Silicon, ohne Apple-Store-Veröffentlichung oder Notarisierung. macOS kann beim ersten Öffnen eine Bestätigung über Systemeinstellungen → Datenschutz & Sicherheit verlangen.
+- `Opdracht-macOS-arm64.zip`: ad-hoc signierte `.app` ausschließlich für Apple Silicon (arm64), ohne Intel-Unterstützung, ohne Apple-Store-Veröffentlichung oder Notarisierung. macOS kann beim ersten Öffnen eine Bestätigung über Systemeinstellungen → Datenschutz & Sicherheit verlangen.
 
 Die Dateien landen als Actions-Artefakte und bei Tags zusätzlich am GitHub-Release. Für Android sind zwei Actions-Secrets notwendig: `OPDRACHT_ANDROID_KEYSTORE_BASE64` (Base64 des privaten PKCS12-Keystores mit Alias `opdracht`) und `OPDRACHT_ANDROID_KEYSTORE_PASSWORD`. Derselbe Schlüssel muss bei späteren Builds wiederverwendet und privat gesichert werden, damit Android die APK als Update akzeptiert. Es gibt keinen unsicheren Debug-Key-Fallback. Die CI entfernt die temporäre Schlüsseldatei nach jedem Android-Build.
 

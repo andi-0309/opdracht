@@ -27,11 +27,11 @@ for name in ['DebugProfile.entitlements', 'Release.entitlements']:
     if 'com.apple.security.network.client' not in text:
         text = text.replace('</dict>', '<key>com.apple.security.network.client</key><true/>\n</dict>')
     target.write_text(text)
-# Personal, ad-hoc signed universal Mac build; no developer account needed.
+# Personal, ad-hoc signed Apple Silicon Mac build; no developer account needed.
 target = project / 'macos/Runner.xcodeproj/project.pbxproj'
 text = target.read_text()
 assert 'CODE_SIGN_STYLE = Automatic;' in text, 'Unexpected Flutter macOS signing template'
-text = text.replace('CODE_SIGN_STYLE = Automatic;', 'CODE_SIGN_STYLE = Manual;\n\t\t\t\tCODE_SIGN_IDENTITY = "-";\n\t\t\t\tARCHS = "arm64 x86_64";\n\t\t\t\tONLY_ACTIVE_ARCH = NO;')
+text = text.replace('CODE_SIGN_STYLE = Automatic;', 'CODE_SIGN_STYLE = Manual;\n\t\t\t\tCODE_SIGN_IDENTITY = "-";\n\t\t\t\tARCHS = arm64;\n\t\t\t\tONLY_ACTIVE_ARCH = NO;')
 target.write_text(text)
 # Installable Android release with a stable private signing key, supplied by CI.
 target = project / 'android/app/build.gradle.kts'

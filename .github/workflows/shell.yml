@@ -16,7 +16,7 @@ jobs:
           - platform: windows
             os: windows-2022
           - platform: macos
-            os: macos-15-intel
+            os: macos-15
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -68,7 +68,7 @@ jobs:
         if: matrix.platform == 'windows'
         working-directory: apps/shell/build/native
         run: flutter build windows --release
-      - name: Build universal macOS app
+      - name: Build Apple Silicon macOS app
         if: matrix.platform == 'macos'
         working-directory: apps/shell/build/native
         run: flutter build macos --release
@@ -89,8 +89,9 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          lipo apps/shell/build/native/build/macos/Build/Products/Release/opdracht.app/Contents/MacOS/opdracht -verify_arch arm64 x86_64
-          ditto -c -k --sequesterRsrc --keepParent apps/shell/build/native/build/macos/Build/Products/Release/opdracht.app dist/Opdracht-macOS-universal.zip
+          lipo apps/shell/build/native/build/macos/Build/Products/Release/opdracht.app/Contents/MacOS/opdracht -verify_arch arm64
+          test "$(lipo -archs apps/shell/build/native/build/macos/Build/Products/Release/opdracht.app/Contents/MacOS/opdracht)" = arm64
+          ditto -c -k --sequesterRsrc --keepParent apps/shell/build/native/build/macos/Build/Products/Release/opdracht.app dist/Opdracht-macOS-arm64.zip
       - uses: actions/upload-artifact@v4
         with:
           name: Opdracht-${{ matrix.platform }}
