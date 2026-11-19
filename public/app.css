@@ -58,6 +58,36 @@
         --notice-bg: #392b23; --notice-line: #7b5741; --notice-text: #f3c6a6; --backdrop: #00000099;
     }
 }
+/* Native scrolling with a shared theme for pages, panels and form fields. */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--muted) var(--hover);
+}
+@supports selector(::-webkit-scrollbar) {
+    * { scrollbar-width: auto; scrollbar-color: auto; }
+    ::-webkit-scrollbar { width: 12px; height: 12px; }
+    ::-webkit-scrollbar-track { background: var(--hover); border-radius: 999px; }
+    ::-webkit-scrollbar-thumb {
+        background: var(--muted);
+        border: 3px solid var(--hover);
+        border-radius: 999px;
+        min-height: 36px;
+        min-width: 36px;
+    }
+    ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+    ::-webkit-scrollbar-thumb:active { background: var(--primary-hover); }
+    ::-webkit-scrollbar-corner { background: var(--hover); }
+}
+@media (forced-colors: active) {
+    * { scrollbar-width: auto; scrollbar-color: auto; }
+    ::-webkit-scrollbar { width: auto; height: auto; }
+    ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: Canvas; }
+    ::-webkit-scrollbar-thumb {
+        background: ButtonText;
+        border-color: Canvas;
+    }
+    ::-webkit-scrollbar-thumb:hover, ::-webkit-scrollbar-thumb:active { background: Highlight; }
+}
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink); line-height: 1.5; }
 button, input, select, textarea { font: inherit; }

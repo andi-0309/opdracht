@@ -643,7 +643,7 @@ function pwaError(error) {
     output.hidden = false;
 }
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=20').then(registration => {
+    navigator.serviceWorker.register('/sw.js?v=21').then(registration => {
         const watch = () => {
             const worker = registration.installing;
             worker?.addEventListener('statechange', () => {
