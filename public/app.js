@@ -195,27 +195,18 @@ function focusPanel() {
     return `<section class="focus-view"><div class="focus-clock"><div data-focus-timer class="timer" role="timer" aria-live="off" aria-label="Verstrichene Fokuszeit">00:00</div><p class="timer-label" role="status">${state.focus?'FOKUS LÄUFT':'BEREIT FÜR FOKUS'}</p><div class="focus-controls">${state.focus?`<button class="button primary" data-action="stop-focus">${icon('square')} Timer stoppen &amp; Zeit speichern</button>${activeTask?`<button class="button subtle" data-action="finish-focus" data-id="${activeTask.id}">${icon('check')} Aufgabe abschließen</button>`:''}`:available.length?`<button class="button primary" data-action="start-focus" ${selected?'':'disabled'}>${icon('play')} Fokus starten</button>`:'<button class="button primary" data-action="new-task">+ Aufgabe erstellen</button>'}</div></div>${!state.focus && available.length?`<label class="focus-choose">Aufgabe<select id="focus-select"><option value="">Aufgabe auswählen …</option>${available.map(t=>`<option value="${t.id}" ${t.id===selected?.id?'selected':''}>${escapeHtml(t.title)}</option>`).join('')}</select></label>`:''}<section class="focus-task" data-content-key="${selected?.id||'empty'}" tabindex="0" aria-labelledby="focus-task-title">${selected?`${tag(taskQuest(selected))}<h2 id="focus-task-title">${escapeHtml(selected.title)}</h2>${selected.notes?`<div class="markdown focus-notes">${markdown(selected.notes)}</div>`:''}`:'<h2 id="focus-task-title">Keine offenen Aufgaben</h2>'}</section></section>`;
 }
 function focusScreen() {
-    return `<section id="focus-workspace" class="focus-workspace"><header class="focus-toolbar"><h1>Fokus</h1><button id="focus-fullscreen" class="button subtle" data-action="toggle-immersive" aria-controls="focus-workspace" aria-pressed="false">${icon('maximize')} Vollbild</button></header>${focusPanel()}</section>`;
+    return `<section id="focus-workspace" class="focus-workspace"><header class="focus-toolbar"><h1>Fokus</h1></header>${focusPanel()}</section>`;
 }
 function syncImmersive() {
+    // Physical screen size excludes tablets and resized desktop windows.
+    const phone = window.matchMedia?.('(pointer: coarse)').matches
+        && Math.min(window.screen?.width || 9999, window.screen?.height || 9999) <= 600;
+    immersive = Boolean(page === 'focus' && phone && window.matchMedia?.('(orientation: landscape)').matches);
     document.body.classList.toggle('immersive-open', immersive);
-    const button=document.querySelector('#focus-fullscreen');
-    if(button) {
-        button.setAttribute('aria-pressed',String(immersive));
-        button.innerHTML=icon(immersive?'x':'maximize')+(immersive?' Vollbild verlassen':' Vollbild');
-    }
 }
-function setImmersive(enabled) {
-    immersive=Boolean(enabled && page==='focus');
-    syncImmersive();
-}
-document.addEventListener('keydown',event=>{
-    if(event.key==='Escape' && immersive && !editor.open && !confirmDialog.open) {
-        event.preventDefault();
-        setImmersive(false);
-        document.querySelector('#focus-fullscreen')?.focus({preventScroll:true});
-    }
-});
+window.addEventListener('resize', syncImmersive);
+window.addEventListener('orientationchange', syncImmersive);
+window.matchMedia?.('(orientation: landscape)').addEventListener?.('change', syncImmersive);
 function reviewStart() {const date=localDate(state.today);date.setDate(date.getDate()-(date.getDay()+6)%7+reviewOffset*7);return dateKey(date);}
 async function loadReview() {
     const sequence=++reviewSequence, week=reviewStart();
@@ -301,7 +292,6 @@ function render() {
         const target=task.completed_at ? row?.closest('details')?.querySelector('summary') : row;
         animateChange(target,[{opacity:.4},{opacity:1}]);
     });
-    if(page!=='focus') immersive=false;
     syncImmersive();
     if(focusedAction) {
         const scope=screen;
@@ -356,7 +346,6 @@ document.addEventListener('click',async event=>{
     const action=button.dataset.action,id=Number(button.dataset.id);
     const task=state?.tasks.find(t=>t.id===id),quest=state?.quests.find(q=>q.id===id);
     try {
-        if(action==='toggle-immersive'&&state) return setImmersive(!immersive);
         if(action==='retry') return await refresh();
         if(!state) return;
         if(action==='new-task') return taskEditor(null,button.dataset.date||state.today);
@@ -619,7 +608,7 @@ function pwaError(error) {
     output.hidden = false;
 }
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=16').then(registration => {
+    navigator.serviceWorker.register('/sw.js?v=17').then(registration => {
         const watch = () => {
             const worker = registration.installing;
             worker?.addEventListener('statechange', () => {

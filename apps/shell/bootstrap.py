@@ -26,10 +26,20 @@ manifest.write_text(text)
 resources = project / 'android/app/src/main/res'
 for directory in ['drawable', 'mipmap-anydpi-v26']:
     (resources / directory).mkdir(parents=True, exist_ok=True)
-shutil.copytree(source / 'android-res', resources, dirs_exist_ok=True)
+shutil.copytree(source / 'android-res', resources, dirs_exist_ok=True, ignore=shutil.ignore_patterns('*.kt'))
 # Select the vector mipmap on older devices and adaptive icon on API 26+.
 for density in ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']:
     (resources / f'mipmap-{density}' / 'ic_launcher.png').unlink(missing_ok=True)
+
+# All desktop launchers use the same mark as Android and the website.
+shutil.copy2(source / 'native-icons/app_icon.ico', project / 'windows/runner/resources/app_icon.ico')
+mac_icons = project / 'macos/Runner/Assets.xcassets/AppIcon.appiconset'
+for size in [16, 32, 64, 128, 256, 512, 1024]:
+    shutil.copy2(source / f'native-icons/app_icon_{size}.png', mac_icons / f'app_icon_{size}.png')
+
+# Keep the screen awake only while this Android activity is resumed and charging.
+activity = project / 'android/app/src/main/kotlin/eu/zerver/opdracht/MainActivity.kt'
+shutil.copy2(source / 'android-res/MainActivity.kt', activity)
 
 for name in ['DebugProfile.entitlements', 'Release.entitlements']:
     target = project / 'macos/Runner' / name

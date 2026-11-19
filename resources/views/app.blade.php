@@ -6,19 +6,19 @@
     <meta name="theme-color" content="#f7f8f2">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="description" content="Aufgaben, Quests und Fokuszeiten.">
-    <link rel="manifest" href="/manifest.webmanifest?v=5">
-    <link rel="icon" href="/icons/icon.svg?v=5" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=5">
+    <link rel="manifest" href="/manifest.webmanifest?v=7">
+    <link rel="icon" href="/icons/icon.svg?v=7" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=7">
     <script src="/theme.js?v=6"></script>
-    <link rel="stylesheet" href="/app.css?v=16">
-    <script src="/app.js?v=16" defer></script>
+    <link rel="stylesheet" href="/app.css?v=17">
+    <script src="/app.js?v=17" defer></script>
     <title>Opdracht</title>
 </head>
 <body>
 <a class="skip" href="#content">Zum Inhalt</a>
 <div class="app-layout">
     <aside class="sidebar">
-        <a class="brand" href="#focus" aria-label="Opdracht Start – Fokus"><span class="brand-mark">o</span>opdracht<span class="brand-dot">.</span></a>
+        <a class="brand" href="#focus" aria-label="Opdracht Start – Fokus"><img class="brand-mark" src="/icons/icon.svg?v=7" alt="" width="36" height="36">opdracht<span class="brand-dot">.</span></a>
         <nav class="nav" aria-label="Hauptnavigation">
             <a class="nav-focus" href="#focus" data-page="focus"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/icons/ui.svg?v=6#timer"></use></svg> Fokus</a>
             <a href="#today" data-page="today"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/icons/ui.svg?v=6#sun"></use></svg> Heute</a>

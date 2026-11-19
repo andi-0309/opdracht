@@ -44,39 +44,35 @@ test('only the eight palette colors are offered, even for unexpected stored valu
     }
     assert.match(ui.run('colorChoices("#123abc")'),/value="#789469" checked/);
 });
-test('fullscreen only hides chrome and Escape preserves the same timer, form and session', () => {
+test('automatic focus fullscreen only activates on landscape phones and preserves session', () => {
     const ui=app();
-    ui.run('state={tasks:[{id:1,title:"<script>evil</script>",quest_id:null}],quests:[],focus:{id:9,task_id:1,started_at:new Date(Date.now()-65000).toISOString()}};selectedTaskId=1;');
-    const html=ui.run('focusScreen()');ui.node('#screen').innerHTML=html;
+    ui.run('state={tasks:[{id:1,title:"<script>evil</script>"}],quests:[],focus:{id:9,task_id:1,started_at:new Date(Date.now()-65000).toISOString()}};');
+    const html=ui.run('focusScreen()');
     assert.match(html,/&lt;script&gt;/);
-    assert.equal((html.match(/data-focus-timer/g)||[]).length,1);
-    const before=ui.requests(),timer=ui.timers[0];
-    ui.run('updateTimer();setImmersive(true)');
+    assert.doesNotMatch(html,/toggle-immersive|Vollbild|focus-fullscreen/);
+    const before=ui.requests();
+    ui.run('window.screen={width:390,height:844};window.matchMedia=query=>({matches:query==="(pointer: coarse)"||query==="(orientation: landscape)"});syncImmersive();updateTimer()');
     assert.equal(ui.node('body').classList.values.has('immersive-open'),true);
-    assert.equal(ui.node('#focus-fullscreen').attributes['aria-pressed'],'true');
-    assert.equal(ui.node('#screen').innerHTML,html);
-    assert.equal(timer.textContent,'01:05');
-    let prevented=false;ui.events.keydown({key:'Escape',preventDefault(){prevented=true;}});
-    assert.equal(prevented,true);assert.equal(ui.node('body').classList.values.has('immersive-open'),false);
-    assert.equal(ui.node('#screen').innerHTML,html);assert.equal(ui.timers[0],timer);
+    assert.equal(ui.timers[0].textContent,'01:05');
+    ui.run('window.matchMedia=query=>({matches:query==="(pointer: coarse)"});syncImmersive()');
+    assert.equal(ui.node('body').classList.values.has('immersive-open'),false);
+    ui.run('window.matchMedia=()=>({matches:true});page="today";syncImmersive()');
+    assert.equal(ui.node('body').classList.values.has('immersive-open'),false);
     assert.equal(ui.run('state.focus.id'),9);assert.equal(ui.requests(),before);
-    assert.equal(ui.node('#focus-fullscreen').attributes['aria-pressed'],'false');
 });
-test('normal and fullscreen focus share the same task selector without a duplicate dialog', () => {
+test('tablets and desktop windows never automatically enter focus fullscreen', () => {
+    const ui=app();
+    ui.run('window.screen={width:820,height:1180};window.matchMedia=()=>({matches:true});syncImmersive()');
+    assert.equal(ui.node('body').classList.values.has('immersive-open'),false);
+    ui.run('window.screen={width:390,height:844};window.matchMedia=query=>({matches:query==="(orientation: landscape)"});syncImmersive()');
+    assert.equal(ui.node('body').classList.values.has('immersive-open'),false);
+});
+test('focus has one task selector and one timer without a manual fullscreen toggle', () => {
     const ui=app();ui.run('state={tasks:[{id:1,title:"Test"}],quests:[],focus:null};');
     const html=ui.run('focusScreen()');
     assert.equal((html.match(/id="focus-select"/g)||[]).length,1);
-    ui.node('#focus-select').value='1';ui.run('setImmersive(true);setImmersive(false);updateTimer()');
-    assert.equal(ui.node('#focus-select').value,'1');
-    assert.equal(ui.timers[0].textContent,'00:00');
-    const view=fs.readFileSync(new URL('../../resources/views/app.blade.php',import.meta.url),'utf8');
-    assert.doesNotMatch(view,/id="focus-dialog"/);
-});
-test('Escape in an open editor does not change fullscreen or timer state', () => {
-    const ui=app();ui.run('setImmersive(true)');ui.node('#editor').open=true;
-    let prevented=false;ui.events.keydown({key:'Escape',preventDefault(){prevented=true;}});
-    assert.equal(prevented,false);
-    assert.equal(ui.node('body').classList.values.has('immersive-open'),true);
+    assert.equal((html.match(/data-focus-timer/g)||[]).length,1);
+    assert.doesNotMatch(html,/toggle-immersive/);
 });
 test('theme follows system initially and on changes, ignoring stored preferences', () => {
     const code=fs.readFileSync(new URL('../../public/theme.js',import.meta.url),'utf8');
@@ -157,7 +153,7 @@ test('mobile focus uses dynamic viewport and safe areas in both orientations wit
     assert.match(css,/env\(safe-area-inset-left\)/);
     assert.doesNotMatch(css,/body[^{}]*{[^}]*overflow:\s*hidden/);
     const sw=fs.readFileSync(new URL('../../public/sw.js',import.meta.url),'utf8');
-    assert.match(sw,/opdracht-static-v16/);assert.match(sw,/app.js\?v=16/);assert.match(sw,/ui.svg\?v=6/);
+    assert.match(sw,/opdracht-static-v17/);assert.match(sw,/app.js\?v=17/);assert.match(sw,/ui.svg\?v=6/);
 });
 
 function dragFixture() {
@@ -382,7 +378,7 @@ test('completed cards cannot initiate drag or reorder; completed-only day receiv
 test('page motion runs only on navigation, completion motion on changes, and reduced-motion disables JS and CSS',()=>{
     const ui=app();let count=0;ui.node('#screen').animate=()=>count++;
     ui.run('state={today:"2026-11-18",tasks:[],quests:[],weekly:{}};location.hash="#today";render();');assert.equal(count,1);
-    ui.run('render();setImmersive(true);setImmersive(false);render();');assert.equal(count,1);
+    ui.run('render();syncImmersive();syncImmersive();render();');assert.equal(count,1);
     ui.run('location.hash="#week";render();');assert.equal(count,2);
     ui.run('weekOffset++;render();');assert.equal(count,3);
     ui.run('window.matchMedia=()=>({matches:true});location.hash="#quests";render();');assert.equal(count,3);
@@ -393,12 +389,12 @@ test('page motion runs only on navigation, completion motion on changes, and red
     assert.match(css,/dialog\[open\]::backdrop \{ animation:/);
     assert.doesNotMatch(css,/(?:^|\n)\.task\s*\{[^}]*animation:/);
 });
-test('cache 16 references agree across worker and Blade views while icon version stays 6',()=>{
+test('cache 17 references agree across worker and Blade views while icon version stays 6',()=>{
     for(const file of ['public/sw.js','resources/views/app.blade.php','resources/views/login.blade.php']) {
-        const contents=fs.readFileSync(new URL('../../'+file,import.meta.url),'utf8');assert.match(contents,/app.css\?v=16/);assert.doesNotMatch(contents,/app\.(css|js)\?v=13/);
+        const contents=fs.readFileSync(new URL('../../'+file,import.meta.url),'utf8');assert.match(contents,/app.css\?v=17/);assert.doesNotMatch(contents,/app\.(css|js)\?v=13/);
     }
-    assert.match(source,/sw.js\?v=16/);assert.match(source,/ui.svg\?v=6/);
-    assert.match(fs.readFileSync(new URL('../../resources/views/login.blade.php',import.meta.url),'utf8'),/sw.js\?v=16/);
+    assert.match(source,/sw.js\?v=17/);assert.match(source,/ui.svg\?v=6/);
+    assert.match(fs.readFileSync(new URL('../../resources/views/login.blade.php',import.meta.url),'utf8'),/sw.js\?v=17/);
 });
 test('completion and reopening animate once without changing dates/focus or animating every refresh',()=>{
     const ui=app(),row=ui.node('motion-row'),details=ui.node('motion-details'),summary=ui.node('motion-summary');let cards=0,summaries=0;
