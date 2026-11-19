@@ -30,9 +30,9 @@ Compress-Archive -Path "$release\*" -DestinationPath dist/Opdracht-Windows-x64.z
 # Exercise setup, in-place update and uninstall without touching the WebView profile.
 $setup = (Resolve-Path 'dist/Opdracht-Windows-x64-Setup.exe').Path
 $install = Join-Path $env:RUNNER_TEMP 'Opdracht-install-check'
-$profile = Join-Path $env:LOCALAPPDATA 'Opdracht\WebView2'
-New-Item -ItemType Directory -Force $profile | Out-Null
-$sentinel = Join-Path $profile 'installer-preservation-test'
+$webViewProfile = Join-Path $env:LOCALAPPDATA 'Opdracht\WebView2'
+New-Item -ItemType Directory -Force $webViewProfile | Out-Null
+$sentinel = Join-Path $webViewProfile 'installer-preservation-test'
 Set-Content $sentinel 'preserve-profile'
 for ($i = 0; $i -lt 2; $i++) {
     $process = Start-Process $setup -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$install", "/LOG=$env:RUNNER_TEMP\opdracht-install-$i.log") -Wait -PassThru

@@ -92,3 +92,18 @@ shutil.copy2(source / 'macos/MainFlutterWindow.swift', project / 'macos/Runner/M
 target = project / 'windows/runner/main.cpp'
 text = target.read_text().replace('window.Create(L"opdracht"', 'window.Create(L"Opdracht"')
 target.write_text(text)
+
+# Match launch and loading surfaces to the system theme before Flutter paints.
+for qualifier, color in [('values', '#f7f8f2'), ('values-night', '#171d19')]:
+    directory = resources / qualifier
+    directory.mkdir(exist_ok=True)
+    (directory / 'opdracht_window.xml').write_text(
+        '<resources><color name="opdracht_window_background">' + color + '</color></resources>')
+    styles = directory / 'styles.xml'
+    text = styles.read_text().replace('?android:colorBackground', '@color/opdracht_window_background')
+    styles.write_text(text)
+for qualifier in ['drawable', 'drawable-v21']:
+    target = resources / qualifier / 'launch_background.xml'
+    text = target.read_text().replace('@android:color/white', '@color/opdracht_window_background')
+    text = text.replace('?android:colorBackground', '@color/opdracht_window_background')
+    target.write_text(text)

@@ -17,7 +17,11 @@ Future<void> main() async {
   WebViewEnvironment? environment;
   if (Platform.isWindows) {
     if (await WebViewEnvironment.getAvailableVersion() == null) {
-      runApp(const MaterialApp(home: Scaffold(body: Center(child: Text(
+      runApp(MaterialApp(
+        theme: shellTheme(Brightness.light),
+        darkTheme: shellTheme(Brightness.dark),
+        builder: (context, child) => DesktopFrame(child: child!),
+        home: const Scaffold(body: Center(child: Text(
         'Bitte die Microsoft Edge WebView2 Runtime installieren und Opdracht erneut öffnen.',
         textAlign: TextAlign.center,
       )))));
@@ -68,8 +72,8 @@ class _OpdrachtShellState extends State<OpdrachtShell> {
     // Keep OS bars, but do not shrink the entire webview for a side cutout.
     // The website applies these insets to controls rather than its background.
     final insets = MediaQuery.viewPaddingOf(context);
-    viewportScript = "document.documentElement.style.setProperty('--shell-safe-left', '${insets.left}px');"
-        "document.documentElement.style.setProperty('--shell-safe-right', '${insets.right}px');";
+    viewportScript = "if (document.documentElement) { document.documentElement.style.setProperty('--shell-safe-left', '${insets.left}px');"
+        "document.documentElement.style.setProperty('--shell-safe-right', '${insets.right}px'); }";
     if (viewportScript != appliedViewportScript) {
       appliedViewportScript = viewportScript;
       WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) applyViewportInsets(); });
@@ -141,6 +145,7 @@ class _OpdrachtShellState extends State<OpdrachtShell> {
             onLoadStart: (view, url) { if (mounted) setState(() => loadFailed = false); },
             onLoadStop: (view, url) async {
               await applyViewportInsets();
+              if (!mounted) return;
               await applyAppearance(MediaQuery.platformBrightnessOf(context) == Brightness.dark);
               final back = await view.canGoBack();
               if (mounted) setState(() => canGoBack = back);
@@ -154,7 +159,7 @@ class _OpdrachtShellState extends State<OpdrachtShell> {
             },
           ),
           if (loadFailed) Positioned.fill(child: ColoredBox(
-            color: Theme.of(context).colorScheme.surface,
+            color: background,
             child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
               const Text('Opdracht ist gerade nicht erreichbar.'),
               TextButton(onPressed: () { setState(() => loadFailed = false); controller?.loadUrl(urlRequest: URLRequest(url: WebUri(homeUrl))); }, child: const Text('Erneut versuchen')),
