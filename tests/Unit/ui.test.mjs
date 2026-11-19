@@ -157,7 +157,7 @@ test('mobile focus uses dynamic viewport and safe areas in both orientations wit
     assert.match(css,/env\(safe-area-inset-left\)/);
     assert.doesNotMatch(css,/body[^{}]*{[^}]*overflow:\s*hidden/);
     const sw=fs.readFileSync(new URL('../../public/sw.js',import.meta.url),'utf8');
-    assert.match(sw,/opdracht-static-v14/);assert.match(sw,/app.js\?v=14/);assert.match(sw,/ui.svg\?v=6/);
+    assert.match(sw,/opdracht-static-v15/);assert.match(sw,/app.js\?v=15/);assert.match(sw,/ui.svg\?v=6/);
 });
 
 function dragFixture() {
@@ -395,10 +395,10 @@ test('page motion runs only on navigation, completion motion on changes, and red
 });
 test('cache 14 references agree across worker and Blade views while icon version stays 6',()=>{
     for(const file of ['public/sw.js','resources/views/app.blade.php','resources/views/login.blade.php']) {
-        const contents=fs.readFileSync(new URL('../../'+file,import.meta.url),'utf8');assert.match(contents,/app.css\?v=14/);assert.doesNotMatch(contents,/app\.(css|js)\?v=13/);
+        const contents=fs.readFileSync(new URL('../../'+file,import.meta.url),'utf8');assert.match(contents,/app.css\?v=15/);assert.doesNotMatch(contents,/app\.(css|js)\?v=13/);
     }
-    assert.match(source,/sw.js\?v=14/);assert.match(source,/ui.svg\?v=6/);
-    assert.match(fs.readFileSync(new URL('../../resources/views/login.blade.php',import.meta.url),'utf8'),/sw.js\?v=14/);
+    assert.match(source,/sw.js\?v=15/);assert.match(source,/ui.svg\?v=6/);
+    assert.match(fs.readFileSync(new URL('../../resources/views/login.blade.php',import.meta.url),'utf8'),/sw.js\?v=15/);
 });
 test('completion and reopening animate once without changing dates/focus or animating every refresh',()=>{
     const ui=app(),row=ui.node('motion-row'),details=ui.node('motion-details'),summary=ui.node('motion-summary');let cards=0,summaries=0;
@@ -515,7 +515,7 @@ test('focus places clock and controls before complete readable task content with
     const css=fs.readFileSync(new URL('../../public/app.css',import.meta.url),'utf8');
     assert.match(css,/\.focus-clock { flex-shrink: 0/);
     assert.match(css,/\.focus-task {[^}]*min-height: 0; overflow: auto;/);
-    assert.match(css,/\.focus-notes { max-width: 70ch; font-size: 18px; line-height: 1.65/);
+    assert.match(css,/\.focus-notes { max-width: 65ch; font-size: 20px; line-height: 1.7/);
     assert.doesNotMatch(css,/focus-eyebrow|focus-exit-hint|-webkit-line-clamp: 2/);
 });
 test('focus refresh retains content scroll and region focus for the same task, not a different task',()=>{
