@@ -89,7 +89,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          lipo -verify_arch arm64 x86_64 apps/shell/build/native/build/macos/Build/Products/Release/opdracht.app/Contents/MacOS/opdracht
+          lipo apps/shell/build/native/build/macos/Build/Products/Release/opdracht.app/Contents/MacOS/opdracht -verify_arch arm64 x86_64
           ditto -c -k --sequesterRsrc --keepParent apps/shell/build/native/build/macos/Build/Products/Release/opdracht.app dist/Opdracht-macOS-universal.zip
       - uses: actions/upload-artifact@v4
         with:
