@@ -27,9 +27,9 @@ class PlannerController extends Controller
 
         return response()->json([
             'user' => $request->user()->only('name'), 'today' => $now->format('Y-m-d'), 'server_now' => $now->toIso8601String(),
-            'quests' => Quest::where('user_id', $uid)->orderBy('id')->get(['id', 'title', 'description', 'color', 'completed_at']),
+            'quests' => Quest::where('user_id', $uid)->orderBy('id')->get(['id', 'title', 'description', 'why', 'weekly_minutes', 'color', 'completed_at']),
             'tasks' => $tasks, 'focus' => $sessions->firstWhere('ended_at', null)?->only(['id', 'task_id', 'started_at']),
-            'weekly' => ['seconds' => (int) $seconds, 'completed' => Task::where('user_id', $uid)->where('completed_at', '>=', $start)->count()],
+            'weekly' => ['quest_seconds' => $sessions->whereNotNull('quest_id')->groupBy('quest_id')->map(fn ($items) => (int) $items->sum(fn ($item) => max(0, $item->started_at->max($start)->diffInSeconds($item->ended_at ?? $now, false)))), 'seconds' => (int) $seconds, 'completed' => Task::where('user_id', $uid)->where('completed_at', '>=', $start)->count()],
         ])->header('Cache-Control', 'private, no-store');
     }
 
@@ -60,7 +60,9 @@ class PlannerController extends Controller
     {
         $data = $request->validate([
             'title' => [$partial ? 'sometimes' : 'required', 'required', 'string', 'max:200'],
-            'description' => ['nullable', 'string', 'max:10000'], 'color' => ['sometimes', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'description' => ['nullable', 'string', 'max:10000'],
+            'why' => ['nullable', 'string', 'max:10000'],
+            'weekly_minutes' => ['nullable', 'integer', 'min:1', 'max:10080'], 'color' => ['sometimes', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'completed' => ['sometimes', 'boolean'],
         ]);
         if (array_key_exists('completed', $data)) {
@@ -160,8 +162,13 @@ class PlannerController extends Controller
                 return $active;
             }
             $this->finish($active);
+            $quest = Quest::where('user_id', $request->user()->id)->find($task->quest_id);
 
-            return FocusSession::create(['user_id' => $request->user()->id, 'task_id' => $task->id, 'started_at' => now()]);
+            return FocusSession::create(['user_id' => $request->user()->id, 'task_id' => $task->id, 'started_at' => now(),
+                'task_title' => $task->title, 'quest_id' => $task->quest_id,
+                'quest_title' => $quest?->title,
+                'quest_color' => $quest?->color,
+            ]);
         });
 
         return response()->json($session->only('id'), 201);
@@ -174,6 +181,54 @@ class PlannerController extends Controller
             $session = FocusSession::where('user_id', $request->user()->id)->findOrFail($data['session_id']);
             $this->finish($session);
         });
+
+        return response()->json(['ok' => true]);
+    }
+
+    private function reviewWeek(Request $request): CarbonImmutable
+    {
+        $data = $request->validate(['week' => ['sometimes', 'required', 'date_format:Y-m-d']]);
+
+        return (isset($data['week']) ? CarbonImmutable::parse($data['week']) : CarbonImmutable::now())->startOfWeek();
+    }
+
+    public function review(Request $request): JsonResponse
+    {
+        $start = $this->reviewWeek($request);
+        $end = $start->addWeek();
+        $uid = $request->user()->id;
+        $sessions = FocusSession::where('user_id', $uid)->whereNotNull('ended_at')
+            ->where('started_at', '<', $end)->where('ended_at', '>', $start)->orderBy('started_at')->get()
+            ->map(function (FocusSession $session) use ($start, $end) {
+                $from = $session->started_at->toImmutable()->max($start);
+                $to = $session->ended_at->toImmutable()->min($end);
+
+                return [
+                    'id' => $session->id, 'task_id' => $session->task_id,
+                    'title' => $session->task_title ?? 'Gelöschte Aufgabe',
+                    'quest_id' => $session->quest_id, 'quest_title' => $session->quest_title,
+                    'quest_color' => $session->quest_color,
+                    'started_at' => $from->toIso8601String(), 'ended_at' => $to->toIso8601String(),
+                    'seconds' => (int) max(0, $from->diffInSeconds($to, false)),
+                ];
+            });
+
+        return response()->json([
+            'week_start' => $start->format('Y-m-d'), 'timezone' => config('app.timezone'),
+            'sessions' => $sessions,
+            'seconds' => $sessions->sum('seconds'),
+            'quest_seconds' => $sessions->whereNotNull('quest_id')->sum('seconds'),
+            'review' => DB::table('weekly_reviews')->where('user_id', $uid)->where('week_start', $start->format('Y-m-d'))->value('notes') ?? '',
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
+    public function saveReview(Request $request): JsonResponse
+    {
+        $start = $this->reviewWeek($request);
+        $data = $request->validate(['notes' => ['present', 'nullable', 'string', 'max:20000']]);
+        DB::table('weekly_reviews')->updateOrInsert([
+            'user_id' => $request->user()->id, 'week_start' => $start->format('Y-m-d'),
+        ], ['notes' => $data['notes'], 'updated_at' => now(), 'created_at' => now()]);
 
         return response()->json(['ok' => true]);
     }

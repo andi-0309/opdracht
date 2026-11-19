@@ -157,7 +157,7 @@ test('mobile focus uses dynamic viewport and safe areas in both orientations wit
     assert.match(css,/env\(safe-area-inset-left\)/);
     assert.doesNotMatch(css,/body[^{}]*{[^}]*overflow:\s*hidden/);
     const sw=fs.readFileSync(new URL('../../public/sw.js',import.meta.url),'utf8');
-    assert.match(sw,/opdracht-static-v11/);assert.match(sw,/app.js\?v=11/);assert.match(sw,/ui.svg\?v=6/);
+    assert.match(sw,/opdracht-static-v12/);assert.match(sw,/app.js\?v=12/);assert.match(sw,/ui.svg\?v=6/);
 });
 
 function dragFixture() {
@@ -391,11 +391,11 @@ test('page motion runs only on navigation, completion motion on changes, and red
     assert.match(css,/dialog\[open\]::backdrop \{ animation:/);
     assert.doesNotMatch(css,/(?:^|\n)\.task\s*\{[^}]*animation:/);
 });
-test('cache 11 references agree across worker and Blade views while icon version stays 6',()=>{
+test('cache 12 references agree across worker and Blade views while icon version stays 6',()=>{
     for(const file of ['public/sw.js','resources/views/app.blade.php','resources/views/login.blade.php']) {
-        const contents=fs.readFileSync(new URL('../../'+file,import.meta.url),'utf8');assert.match(contents,/app.css\?v=11/);assert.doesNotMatch(contents,/app\.(css|js)\?v=10/);
+        const contents=fs.readFileSync(new URL('../../'+file,import.meta.url),'utf8');assert.match(contents,/app.css\?v=12/);assert.doesNotMatch(contents,/app\.(css|js)\?v=11/);
     }
-    assert.match(source,/sw.js\?v=11/);assert.match(source,/ui.svg\?v=6/);
+    assert.match(source,/sw.js\?v=12/);assert.match(source,/ui.svg\?v=6/);
 });
 test('completion and reopening animate once without changing dates/focus or animating every refresh',()=>{
     const ui=app(),row=ui.node('motion-row'),details=ui.node('motion-details'),summary=ui.node('motion-summary');let cards=0,summaries=0;
@@ -415,4 +415,34 @@ test('progress width motion compares old/new values rather than replaying on ide
     ui.run('render();');assert.equal(count,1);
     bar.style.width='25%';ui.run('render();');assert.equal(count,2);
     ui.run('window.matchMedia=()=>({matches:true});');bar.style.width='25%';ui.run('render();');assert.equal(count,2);
+});
+
+test('simple Markdown formats text, lists and safe links while raw HTML and script URLs stay inert',()=>{
+    const ui=app();
+    const html=ui.run('markdown("**wichtig** und *ruhig*\\n- Eins\\n- Zwei\\n1. Nummer\\n[Website](https://example.org?a=1&b=2)\\n<script>alert(1)</script>\\n[bad](javascript:alert)\\n`Code`")');
+    assert.match(html,/<strong>wichtig<\/strong>/);assert.match(html,/<em>ruhig<\/em>/);
+    assert.match(html,/<ul><li>Eins<\/li><li>Zwei<\/li><\/ul><ol>/);
+    assert.match(html,/href="https:\/\/example.org\?a=1&amp;b=2"/);
+    assert.match(html,/rel="noopener noreferrer"/);assert.match(html,/&lt;script&gt;/);
+    assert.doesNotMatch(html,/<script|href="javascript:/);
+    assert.match(ui.run('markdown(\'[x](https://example.org/"onmouseover="alert)\')'),/&quot;/);
+});
+test('focus renders complete task notes and chooses newly available due work over stale automatic selection',()=>{
+    const ui=app();ui.run('state={today:"2026-11-19",tasks:[{id:1,title:"Later",scheduled_for:"2026-11-20"},{id:2,title:"Today",scheduled_for:"2026-11-19",notes:"**All content**"}],quests:[],focus:null};');
+    assert.equal(ui.run('focusTask().id'),2);assert.match(ui.run('focusPanel()'),/<strong>All content<\/strong>/);
+    ui.run('state.focus={id:9,task_id:1}');assert.equal(ui.run('focusTask().id'),1);
+});
+test('weekly cards show Markdown preview without quick-start and today quick capture includes notes and quest',()=>{
+    const ui=app();ui.run('state={today:"2026-11-19",tasks:[],quests:[{id:1,title:"Quest"}],focus:null};');
+    const card=ui.run('taskRow({id:1,title:"Work",notes:"- First\\n- Second"},true)');
+    assert.match(card,/task-preview/);assert.match(card,/<li>First<\/li>/);assert.doesNotMatch(card,/data-action="focus-task"/);
+    const form=ui.run('taskSection("Heute",[],"",state.today)');assert.match(form,/name="notes"/);assert.match(form,/name="quest_id"/);
+    const view=fs.readFileSync(new URL('../../resources/views/app.blade.php',import.meta.url),'utf8');
+    assert.deepEqual([...view.matchAll(/data-page="([a-z]+)"/g)].map(m=>m[1]),['focus','today','week','review','quests']);
+});
+test('logbook splits midnight sessions between days and keeps titles escaped in calendar',()=>{
+    const ui=app();ui.run('state={today:"2026-11-19",tasks:[],quests:[],weekly:{}};reviewData={week_start:"2026-11-16",seconds:3600,quest_seconds:0,review:"<script>bad</script>",sessions:[{id:1,title:"<b>Title</b>",started_at:"2026-11-18T23:30:00",ended_at:"2026-11-19T00:30:00",seconds:3600}]};');
+    const days=ui.run('sessionDays(reviewData.sessions,"2026-11-16")');assert.equal(days[2].entries[0].seconds,1800);assert.equal(days[3].entries[0].seconds,1800);
+    const html=ui.run('reviewScreen()');assert.match(html,/&lt;b&gt;Title/);assert.match(html,/&lt;script&gt;bad/);assert.equal((html.match(/class="log-day"/g)||[]).length,7);
+    ui.run('reviewDrafts.set("2026-11-16","Unsaved draft")');assert.match(ui.run('reviewScreen()'),/Unsaved draft/);
 });

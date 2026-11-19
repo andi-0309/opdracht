@@ -38,7 +38,9 @@ class PlanQuest extends PlannerTool
             'action' => $schema->string()->enum(['create', 'update'])->required(),
             'id' => $schema->integer()->description('Required when updating an existing own quest.'),
             'title' => $schema->string()->description('Required on create; up to 200 characters.'),
-            'description' => $schema->string()->nullable(),
+            'description' => $schema->string()->nullable()->description('What this quest is about.'),
+            'why' => $schema->string()->nullable()->description('Why this quest matters.'),
+            'weekly_minutes' => $schema->integer()->nullable()->description('Optional weekly time goal in minutes, 1 to 10080; null disables it.'),
             'color' => $schema->string()->enum(self::COLORS),
             'completed' => $schema->boolean(),
         ];

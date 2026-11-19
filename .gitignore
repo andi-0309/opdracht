@@ -29,3 +29,6 @@ Thumbs.db
 /backups/
 .env.*
 !.env.example
+/apps/shell/build/
+/apps/shell/.dart_tool/
+/apps/shell/.signing/

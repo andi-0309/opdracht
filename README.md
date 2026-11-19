@@ -206,3 +206,24 @@ php artisan opdracht:mcp-token you@example.com --revoke=12
 ```
 
 In Docker diese Artisan-Befehle wie oben im App-Container ausführen. Abgelaufene oder widerrufene Tokens können nicht mehr zugreifen. Der Endpunkt ist auf 60 Anfragen pro Benutzer und Minute begrenzt; Antworten dürfen nicht geteilt zwischengespeichert werden. Caddy benötigt keine gesonderte Route, da der gesamte Host bereits an Opdracht weitergeleitet wird. Eine zusätzliche OAuth-/Passport-Integration für Clients ohne benutzerdefinierte Bearer-Header ist nicht enthalten.
+
+
+## Wochenziele und Arbeitslogbuch
+
+Quests trennen „Warum ist es wichtig?“ und „Worum geht es genau?“. Ein optionales Wochenziel in Stunden misst investierte Zeit, nicht die Anzahl erledigter Aufgaben. Der Rückblick zeigt gebuchte Fokusabschnitte als Zeitkalender und trennt Gesamtfokuszeit von Quest-Zeit. Wochen starten am Montag in der Serverzeitzone; die Kalenderzeiten werden in der Gerätezeitzone angezeigt. Der Wochenzielvergleich verwendet die aktuell eingestellten Ziele. Laufende Timer erscheinen im Logbuch erst nach dem Stoppen. Review-Notizen werden pro Benutzer und Woche gespeichert; Entwürfe bleiben während der Navigation erhalten, dauerhaft gespeichert wird mit „Review speichern“.
+
+Aufgabenbeschreibungen unterstützen einen kleinen Markdown-Umfang: `**fett**`, `*kursiv*`, Code mit Backticks, Aufzählungen und nummerierte Listen sowie `[Titel](https://example.org)` und `mailto:`-Links. HTML wird als Text angezeigt, nicht ausgeführt. Die Wochenkarte zeigt eine Vorschau von drei Zeilen, Fokus die vollständige Beschreibung mit eigenem Scrollbereich für lange Inhalte. In Heute können Beschreibung und Quest direkt in der Schnellerfassung ergänzt werden.
+
+## Reine Website-Hülle für Android, Windows und macOS
+
+`apps/shell/` enthält ausschließlich eine Flutter-WebView für `https://opdracht.zerver.eu/`, ohne zweite Planungslogik, native Datenbank oder zusätzliche Gerätefunktionen. Authentik bleibt für die Anmeldung innerhalb der WebView; externe HTTPS-Links öffnen den Systembrowser. Webänderungen sind sofort in der Hülle verfügbar. Anmeldedaten werden nicht eingebaut; die Website-Sitzung wird vom jeweiligen WebView-Profil verwaltet.
+
+Der Workflow **Website shell** erzeugt bei `v*`-Tags oder manuellem Start mit Flutter **3.38.5** die nativen Runner aus `apps/shell/bootstrap.py`, prüft Dart-Code und Navigation und kompiliert:
+
+- `Opdracht-Android.apk`: direkt installierbares Release-APK.
+- `Opdracht-Windows-x64.zip`: komplette Anwendung inklusive ihrer Flutter-Bibliotheken. Das ZIP vollständig entpacken; Microsoft Edge WebView2 Runtime muss installiert sein.
+- `Opdracht-macOS-universal.zip`: ad-hoc signierte `.app` für Intel und Apple Silicon, ohne Apple-Store-Veröffentlichung oder Notarisierung. macOS kann beim ersten Öffnen eine Bestätigung über Systemeinstellungen → Datenschutz & Sicherheit verlangen.
+
+Die Dateien landen als Actions-Artefakte und bei Tags zusätzlich am GitHub-Release. Für Android sind zwei Actions-Secrets notwendig: `OPDRACHT_ANDROID_KEYSTORE_BASE64` (Base64 des privaten PKCS12-Keystores mit Alias `opdracht`) und `OPDRACHT_ANDROID_KEYSTORE_PASSWORD`. Derselbe Schlüssel muss bei späteren Builds wiederverwendet und privat gesichert werden, damit Android die APK als Update akzeptiert. Es gibt keinen unsicheren Debug-Key-Fallback. Die CI entfernt die temporäre Schlüsseldatei nach jedem Android-Build.
+
+Für lokale Builds Flutter 3.38.5 installieren und `python apps/shell/bootstrap.py` ausführen. Danach unter `apps/shell/build/native` `flutter pub get`, `flutter analyze`, `flutter test` und den gewünschten Plattform-Build ausführen. Android benötigt zusätzlich die beiden Umgebungsvariablen `OPDRACHT_KEYSTORE_PATH` und `OPDRACHT_KEYSTORE_PASSWORD`. Windows und macOS müssen auf ihrem jeweiligen Betriebssystem gebaut werden. Die generierten nativen Runner und private Signierdateien werden nicht versioniert und gelangen nicht ins Docker-Image.

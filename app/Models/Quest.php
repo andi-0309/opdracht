@@ -9,10 +9,10 @@ class Quest extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['user_id', 'title', 'description', 'color', 'completed_at'];
+    protected $fillable = ['user_id', 'title', 'description', 'why', 'weekly_minutes', 'color', 'completed_at'];
 
     protected function casts(): array
     {
-        return ['completed_at' => 'datetime'];
+        return ['weekly_minutes' => 'integer', 'completed_at' => 'datetime'];
     }
 }

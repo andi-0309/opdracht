@@ -16,6 +16,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
     Route::prefix('api')->controller(PlannerController::class)->group(function () {
         Route::get('/state', 'state');
+        Route::get('/review', 'review');
+        Route::put('/review', 'saveReview');
         Route::post('/quests', 'storeQuest');
         Route::patch('/quests/{id}', 'updateQuest');
         Route::delete('/quests/{id}', 'deleteQuest');
