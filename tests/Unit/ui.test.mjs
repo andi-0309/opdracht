@@ -157,7 +157,7 @@ test('mobile focus uses dynamic viewport and safe areas in both orientations wit
     assert.match(css,/env\(safe-area-inset-left\)/);
     assert.doesNotMatch(css,/body[^{}]*{[^}]*overflow:\s*hidden/);
     const sw=fs.readFileSync(new URL('../../public/sw.js',import.meta.url),'utf8');
-    assert.match(sw,/opdracht-static-v13/);assert.match(sw,/app.js\?v=13/);assert.match(sw,/ui.svg\?v=6/);
+    assert.match(sw,/opdracht-static-v14/);assert.match(sw,/app.js\?v=14/);assert.match(sw,/ui.svg\?v=6/);
 });
 
 function dragFixture() {
@@ -393,12 +393,12 @@ test('page motion runs only on navigation, completion motion on changes, and red
     assert.match(css,/dialog\[open\]::backdrop \{ animation:/);
     assert.doesNotMatch(css,/(?:^|\n)\.task\s*\{[^}]*animation:/);
 });
-test('cache 13 references agree across worker and Blade views while icon version stays 6',()=>{
+test('cache 14 references agree across worker and Blade views while icon version stays 6',()=>{
     for(const file of ['public/sw.js','resources/views/app.blade.php','resources/views/login.blade.php']) {
-        const contents=fs.readFileSync(new URL('../../'+file,import.meta.url),'utf8');assert.match(contents,/app.css\?v=13/);assert.doesNotMatch(contents,/app\.(css|js)\?v=12/);
+        const contents=fs.readFileSync(new URL('../../'+file,import.meta.url),'utf8');assert.match(contents,/app.css\?v=14/);assert.doesNotMatch(contents,/app\.(css|js)\?v=13/);
     }
-    assert.match(source,/sw.js\?v=13/);assert.match(source,/ui.svg\?v=6/);
-    assert.match(fs.readFileSync(new URL('../../resources/views/login.blade.php',import.meta.url),'utf8'),/sw.js\?v=13/);
+    assert.match(source,/sw.js\?v=14/);assert.match(source,/ui.svg\?v=6/);
+    assert.match(fs.readFileSync(new URL('../../resources/views/login.blade.php',import.meta.url),'utf8'),/sw.js\?v=14/);
 });
 test('completion and reopening animate once without changing dates/focus or animating every refresh',()=>{
     const ui=app(),row=ui.node('motion-row'),details=ui.node('motion-details'),summary=ui.node('motion-summary');let cards=0,summaries=0;
@@ -502,4 +502,28 @@ test('visible screens omit redundant instructions but retain accessible reorder 
     assert.doesNotMatch(ui.run('weekScreen()+focusScreen()'),/Aufgabenkarte ziehen|serverseitig|Beim Stoppen|EINE AUFGABE|Navigation wieder ein/);
     const view=fs.readFileSync(new URL('../../resources/views/app.blade.php',import.meta.url),'utf8');
     assert.match(view,/id="reorder-help" class="sr-only"/);assert.match(view,/id="editor-error"[^>]*role="alert"/);
+});
+
+test('focus places clock and controls before complete readable task content without slogans',()=>{
+    const ui=app();ui.run('state={today:"2026-11-19",tasks:[{id:1,title:"Readable title",notes:"**Full notes**"}],quests:[],focus:{id:9,task_id:1}}');
+    const html=ui.run('focusPanel()');
+    assert.ok(html.indexOf('data-focus-timer')<html.indexOf('focus-task-title'));
+    assert.ok(html.indexOf('focus-controls')<html.indexOf('focus-task-title'));
+    assert.match(html,/<section class="focus-task"[^>]*tabindex="0" aria-labelledby="focus-task-title"/);
+    assert.match(html,/<strong>Full notes<\/strong>/);
+    assert.doesNotMatch(html,/EINE AUFGABE|Dein Fokus|serverseitig|Beim Stoppen/);
+    const css=fs.readFileSync(new URL('../../public/app.css',import.meta.url),'utf8');
+    assert.match(css,/\.focus-clock { flex-shrink: 0/);
+    assert.match(css,/\.focus-task {[^}]*min-height: 0; overflow: auto;/);
+    assert.match(css,/\.focus-notes { max-width: 70ch; font-size: 18px; line-height: 1.65/);
+    assert.doesNotMatch(css,/focus-eyebrow|focus-exit-hint|-webkit-line-clamp: 2/);
+});
+test('focus refresh retains content scroll and region focus for the same task, not a different task',()=>{
+    const ui=app(),content=ui.node('task-content');content.dataset.contentKey='1';content.scrollTop=180;let focused=0;content.focus=()=>focused++;
+    ui.node('#screen').querySelector=selector=>selector==='.focus-task'?content:null;
+    ui.run('state={today:"2026-11-19",tasks:[{id:1,title:"Task"}],quests:[],weekly:{}};location.hash="#focus";document.activeElement=document.querySelector("task-content");render()');
+    let html='';Object.defineProperty(ui.node('#screen'),'innerHTML',{get(){return html;},set(value){html=value;content.scrollTop=0;}});
+    content.scrollTop=180;ui.run('render()');assert.equal(content.scrollTop,180);assert.equal(focused,1);
+    Object.defineProperty(content.dataset,'contentKey',{get(){return html.includes('data-content-key="2"')?'2':'1';},configurable:true});
+    ui.run('state.tasks=[{id:2,title:"Different"}];render()');assert.equal(content.scrollTop,0);
 });

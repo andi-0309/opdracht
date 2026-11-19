@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-const shellVersion = String.fromEnvironment('APP_VERSION', defaultValue: '0.6.1');
+const shellVersion = String.fromEnvironment('APP_VERSION', defaultValue: '0.6.2');
 const repositoryUrl = 'https://github.com/andi-0309/opdracht';
 const obtainiumLink = 'obtainium://add/https://github.com/andi-0309/opdracht';
 final obtainiumWebLink = Uri.https('apps.obtainium.imranr.dev', '/redirect', {

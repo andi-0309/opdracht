@@ -1,7 +1,7 @@
 'use strict';
-const CACHE = 'opdracht-static-v13';
+const CACHE = 'opdracht-static-v14';
 const OFFLINE_URL = '/offline.html?v=5';
-const ASSETS = [OFFLINE_URL, '/icons/ui.svg?v=6', '/app.css?v=13', '/app.js?v=13', '/theme.js?v=6', '/icons/icon.svg?v=5', '/icons/icon-192.png?v=5', '/icons/icon-512.png?v=5', '/icons/apple-touch-icon.png?v=5', '/manifest.webmanifest?v=5'];
+const ASSETS = [OFFLINE_URL, '/icons/ui.svg?v=6', '/app.css?v=14', '/app.js?v=14', '/theme.js?v=6', '/icons/icon.svg?v=5', '/icons/icon-192.png?v=5', '/icons/icon-512.png?v=5', '/icons/apple-touch-icon.png?v=5', '/manifest.webmanifest?v=5'];
 self.addEventListener('install', event => {
     event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS.map(url => new Request(url, {cache: 'reload'})))).then(() => self.skipWaiting()));
 });

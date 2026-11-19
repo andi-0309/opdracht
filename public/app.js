@@ -192,7 +192,7 @@ function focusPanel() {
     const activeTask=state.tasks.find(t=>t.id===state.focus?.task_id);
     const selected=focusTask();
     const available=state.tasks.filter(t=>!t.completed_at);
-    return `<section class="focus-view">${selected?`${tag(taskQuest(selected))}<h2>${escapeHtml(selected.title)}</h2>${selected.notes?`<div class="markdown focus-notes" tabindex="0" aria-label="Aufgabenbeschreibung">${markdown(selected.notes)}</div>`:''}`:`<h2>${available.length?'Worauf möchtest du dich konzentrieren?':'Platz für deinen nächsten Schritt.'}</h2>`}${!state.focus && available.length?`<label class="focus-choose">Aufgabe<select id="focus-select"><option value="">Aufgabe auswählen …</option>${available.map(t=>`<option value="${t.id}" ${t.id===selected?.id?'selected':''}>${escapeHtml(t.title)}</option>`).join('')}</select></label>`:''}<div data-focus-timer class="timer" role="timer" aria-live="off" aria-label="Verstrichene Fokuszeit">00:00</div><p class="timer-label" role="status">${state.focus?'FOKUS LÄUFT':'BEREIT FÜR FOKUS'}</p><div class="focus-controls">${state.focus?`<button class="button primary" data-action="stop-focus">${icon('square')} Timer stoppen &amp; Zeit speichern</button>${activeTask?`<button class="button subtle" data-action="finish-focus" data-id="${activeTask.id}">${icon('check')} Aufgabe abschließen</button>`:''}`:available.length?`<button class="button primary" data-action="start-focus" ${selected?'':'disabled'}>${icon('play')} Fokus starten</button>`:'<button class="button primary" data-action="new-task">+ Aufgabe erstellen</button>'}</div></section>`;
+    return `<section class="focus-view"><div class="focus-clock"><div data-focus-timer class="timer" role="timer" aria-live="off" aria-label="Verstrichene Fokuszeit">00:00</div><p class="timer-label" role="status">${state.focus?'FOKUS LÄUFT':'BEREIT FÜR FOKUS'}</p><div class="focus-controls">${state.focus?`<button class="button primary" data-action="stop-focus">${icon('square')} Timer stoppen &amp; Zeit speichern</button>${activeTask?`<button class="button subtle" data-action="finish-focus" data-id="${activeTask.id}">${icon('check')} Aufgabe abschließen</button>`:''}`:available.length?`<button class="button primary" data-action="start-focus" ${selected?'':'disabled'}>${icon('play')} Fokus starten</button>`:'<button class="button primary" data-action="new-task">+ Aufgabe erstellen</button>'}</div></div>${!state.focus && available.length?`<label class="focus-choose">Aufgabe<select id="focus-select"><option value="">Aufgabe auswählen …</option>${available.map(t=>`<option value="${t.id}" ${t.id===selected?.id?'selected':''}>${escapeHtml(t.title)}</option>`).join('')}</select></label>`:''}<section class="focus-task" data-content-key="${selected?.id||'empty'}" tabindex="0" aria-labelledby="focus-task-title">${selected?`${tag(taskQuest(selected))}<h2 id="focus-task-title">${escapeHtml(selected.title)}</h2>${selected.notes?`<div class="markdown focus-notes">${markdown(selected.notes)}</div>`:''}`:'<h2 id="focus-task-title">Keine offenen Aufgaben</h2>'}</section></section>`;
 }
 function focusScreen() {
     return `<section id="focus-workspace" class="focus-workspace"><header class="focus-toolbar"><h1>Fokus</h1><button id="focus-fullscreen" class="button subtle" data-action="toggle-immersive" aria-controls="focus-workspace" aria-pressed="false">${icon('maximize')} Vollbild</button></header>${focusPanel()}</section>`;
@@ -276,6 +276,8 @@ function render() {
     document.querySelectorAll('[data-page]').forEach(link=>{const active=link.dataset.page===page;link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');});
     document.querySelector('#date-label').textContent=localDate(state.today).toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
     const focused=document.activeElement;
+    const previousContent=screen.querySelector('.focus-task');
+    const contentPosition=previousContent ? {key:previousContent.dataset.contentKey,top:previousContent.scrollTop,focused:focused===previousContent} : null;
     const focusedAction=focused?.dataset.action;
     const focusedSelect=focused?.id;
     const previousProgress=new Map(Array.from(screen.querySelectorAll('[data-progress-id]'),bar=>[bar.dataset.progressId,bar.style.width]));
@@ -307,6 +309,11 @@ function render() {
         target?.focus({preventScroll:true});
 
     } else if(focusedSelect==='focus-select') document.getElementById(focusedSelect)?.focus({preventScroll:true});
+    const currentContent=screen.querySelector('.focus-task');
+    if(!pageChanged && currentContent && contentPosition?.key===currentContent.dataset.contentKey) {
+        currentContent.scrollTop=contentPosition.top;
+        if(contentPosition.focused) currentContent.focus({preventScroll:true});
+    }
     updateTimer();
 }
 function updateTimer() {
@@ -612,7 +619,7 @@ function pwaError(error) {
     output.hidden = false;
 }
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=13').then(registration => {
+    navigator.serviceWorker.register('/sw.js?v=14').then(registration => {
         const watch = () => {
             const worker = registration.installing;
             worker?.addEventListener('statechange', () => {
