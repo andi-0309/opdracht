@@ -80,6 +80,13 @@ jobs:
           OPDRACHT_KEYSTORE_PATH: ${{ runner.temp }}/opdracht.jks
           OPDRACHT_KEYSTORE_PASSWORD: ${{ secrets.OPDRACHT_ANDROID_KEYSTORE_PASSWORD }}
         run: flutter build apk --release --dart-define=APP_VERSION=${{ env.APP_VERSION }}
+      - name: Verify Android launcher identity
+        if: matrix.platform == 'android'
+        shell: bash
+        run: |
+          aapt=$(find "$ANDROID_HOME/build-tools" -name aapt -type f | sort -V | tail -n 1)
+          "$aapt" dump badging apps/shell/build/native/build/app/outputs/flutter-apk/app-release.apk > "$RUNNER_TEMP/opdracht-badging.txt"
+          grep -E "application: label='Opdracht' icon='res/.*xml'" "$RUNNER_TEMP/opdracht-badging.txt"
       - name: Build Windows
         if: matrix.platform == 'windows'
         working-directory: apps/shell/build/native

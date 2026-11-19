@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'dart:collection';
 import 'update_prompt.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 const homeUrl = 'https://opdracht.zerver.eu/';
@@ -39,6 +41,13 @@ class _OpdrachtShellState extends State<OpdrachtShell> {
   InAppWebViewController? controller;
   bool canGoBack = false;
   bool loadFailed = false;
+  String viewportScript = '';
+  String appliedViewportScript = '';
+
+  Future<void> applyViewportInsets() async {
+    if (controller == null) return;
+    await controller!.evaluateJavascript(source: viewportScript);
+  }
 
   Future<void> openExternal(WebUri url) async {
     if (url.scheme == 'https') await InAppBrowser.openWithSystemBrowser(url: url);
@@ -46,20 +55,44 @@ class _OpdrachtShellState extends State<OpdrachtShell> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    // Keep OS bars, but do not shrink the entire webview for a side cutout.
+    // The website applies these insets to controls rather than its background.
+    final insets = MediaQuery.viewPaddingOf(context);
+    viewportScript = "document.documentElement.style.setProperty('--shell-safe-left', '${insets.left}px');"
+        "document.documentElement.style.setProperty('--shell-safe-right', '${insets.right}px');";
+    if (viewportScript != appliedViewportScript) {
+      appliedViewportScript = viewportScript;
+      WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) applyViewportInsets(); });
+    }
+    final dark = MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+    final background = dark ? const Color(0xff171d19) : const Color(0xfff7f8f2);
+    final systemStyle = SystemUiOverlayStyle(
+      statusBarColor: background,
+      systemNavigationBarColor: background,
+      systemNavigationBarDividerColor: background,
+      statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+      statusBarBrightness: dark ? Brightness.dark : Brightness.light,
+      systemNavigationBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+    );
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: systemStyle,
+      child: MaterialApp(
       title: 'Opdracht',
       themeMode: ThemeMode.system,
-      theme: ThemeData(brightness: Brightness.light),
-      darkTheme: ThemeData(brightness: Brightness.dark),
+      theme: ThemeData(brightness: Brightness.light, scaffoldBackgroundColor: const Color(0xfff7f8f2)),
+      darkTheme: ThemeData(brightness: Brightness.dark, scaffoldBackgroundColor: const Color(0xff171d19)),
       home: UpdatePrompt(child: PopScope(
         canPop: !canGoBack,
         onPopInvokedWithResult: (didPop, result) async {
           if (!didPop && controller != null) await controller!.goBack();
         },
         child: Scaffold(
-          body: SafeArea(child: Stack(children: [
+          body: SafeArea(left: false, right: false, child: Stack(children: [
           InAppWebView(
             webViewEnvironment: widget.environment,
+            initialUserScripts: UnmodifiableListView([
+              UserScript(source: viewportScript, injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START),
+            ]),
             initialUrlRequest: URLRequest(url: WebUri(homeUrl)),
             initialSettings: InAppWebViewSettings(
               useShouldOverrideUrlLoading: true,
@@ -90,6 +123,7 @@ class _OpdrachtShellState extends State<OpdrachtShell> {
             },
             onLoadStart: (view, url) { if (mounted) setState(() => loadFailed = false); },
             onLoadStop: (view, url) async {
+              await applyViewportInsets();
               final back = await view.canGoBack();
               if (mounted) setState(() => canGoBack = back);
             },
@@ -110,6 +144,6 @@ class _OpdrachtShellState extends State<OpdrachtShell> {
           )),
         ]))),
       )),
-    );
+    ));
   }
 }
