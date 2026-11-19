@@ -27,7 +27,7 @@ resources = project / 'android/app/src/main/res'
 for directory in ['drawable', 'mipmap-anydpi-v26']:
     (resources / directory).mkdir(parents=True, exist_ok=True)
 shutil.copytree(source / 'android-res', resources, dirs_exist_ok=True)
-# Resource aliases select the vector on older devices and adaptive icon on API 26+.
+# Select the vector mipmap on older devices and adaptive icon on API 26+.
 for density in ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']:
     (resources / f'mipmap-{density}' / 'ic_launcher.png').unlink(missing_ok=True)
 

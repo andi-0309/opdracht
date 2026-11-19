@@ -1,4 +1,3 @@
 <resources>
     <color name="opdracht_icon_background">#24352d</color>
-    <item name="ic_launcher" type="mipmap">@drawable/opdracht_launcher</item>
 </resources>
