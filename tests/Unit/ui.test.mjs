@@ -398,6 +398,7 @@ test('cache 13 references agree across worker and Blade views while icon version
         const contents=fs.readFileSync(new URL('../../'+file,import.meta.url),'utf8');assert.match(contents,/app.css\?v=13/);assert.doesNotMatch(contents,/app\.(css|js)\?v=12/);
     }
     assert.match(source,/sw.js\?v=13/);assert.match(source,/ui.svg\?v=6/);
+    assert.match(fs.readFileSync(new URL('../../resources/views/login.blade.php',import.meta.url),'utf8'),/sw.js\?v=13/);
 });
 test('completion and reopening animate once without changing dates/focus or animating every refresh',()=>{
     const ui=app(),row=ui.node('motion-row'),details=ui.node('motion-details'),summary=ui.node('motion-summary');let cards=0,summaries=0;

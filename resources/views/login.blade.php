@@ -10,5 +10,5 @@
 @if(config('oidc.local_login', true))
 <form action="/login" method="post">@csrf<label>E-Mail<input type="email" name="email" value="{{ old('email') }}" autocomplete="username" required autofocus></label><label>Passwort<input type="password" name="password" autocomplete="current-password" required></label><label class="check-label"><input type="checkbox" name="remember" value="1"> Angemeldet bleiben</label><button type="submit" class="button primary wide">Anmelden <span aria-hidden="true">↗</span></button></form>
 @endif
-</div></main><script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js?v=10').catch(error => console.error('Opdracht service worker:', error));</script></body>
+</div></main><script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js?v=13').catch(error => console.error('Opdracht service worker:', error));</script></body>
 </html>
