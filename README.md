@@ -216,13 +216,21 @@ Aufgabenbeschreibungen unterstützen einen kleinen Markdown-Umfang: `**fett**`, 
 
 ## Reine Website-Hülle für Android, Windows und macOS
 
-`apps/shell/` enthält ausschließlich eine Flutter-WebView für `https://opdracht.zerver.eu/`, ohne zweite Planungslogik, native Datenbank oder zusätzliche Gerätefunktionen. Authentik bleibt für die Anmeldung innerhalb der WebView; externe HTTPS-Links öffnen den Systembrowser. Webänderungen sind sofort in der Hülle verfügbar. Anmeldedaten werden nicht eingebaut; die Website-Sitzung wird vom jeweiligen WebView-Profil verwaltet.
+`apps/shell/` enthält ausschließlich eine Flutter-WebView für `https://opdracht.zerver.eu/`, ohne zweite Planungslogik oder native Datenbank. Als native Zusatzfunktion gibt es eine GitHub-Updateprüfung. Authentik bleibt für die Anmeldung innerhalb der WebView; externe HTTPS-Links öffnen den Systembrowser. Webänderungen sind sofort in der Hülle verfügbar. Anmeldedaten werden nicht eingebaut; die Website-Sitzung wird vom jeweiligen WebView-Profil verwaltet.
 
 Der Workflow **Website shell** erzeugt bei `v*`-Tags oder manuellem Start mit Flutter **3.38.5** die nativen Runner aus `apps/shell/bootstrap.py`, prüft Dart-Code und Navigation und kompiliert:
 
 - `Opdracht-Android.apk`: direkt installierbares Release-APK.
 - `Opdracht-Windows-x64.zip`: komplette Anwendung inklusive ihrer Flutter-Bibliotheken. Das ZIP vollständig entpacken; Microsoft Edge WebView2 Runtime muss installiert sein.
 - `Opdracht-macOS-arm64.zip`: ad-hoc signierte `.app` ausschließlich für Apple Silicon (arm64), ohne Intel-Unterstützung, ohne Apple-Store-Veröffentlichung oder Notarisierung. macOS kann beim ersten Öffnen eine Bestätigung über Systemeinstellungen → Datenschutz & Sicherheit verlangen.
+
+### App-Updates und Obtainium
+
+Die Hülle prüft beim Start die neueste stabile GitHub-Veröffentlichung. Über das Update-Symbol unten rechts ist eine manuelle Prüfung möglich. Nur neuere Versionen mit vollständig hochgeladenem, passendem Plattform-Download werden angeboten; Vorabversionen und Downgrades nicht. Netzwerkfehler verhindern nicht die Nutzung der Website. Der Download öffnet den Systembrowser. Android installiert die heruntergeladene APK nach Bestätigung; Windows/macOS: ZIP entpacken, App schließen und ersetzen. Es findet keine stille Installation statt. Das bestehende WebView-Profil bleibt erhalten; die App nicht vorher deinstallieren.
+
+Android kann alternativ mit **Obtainium** aktualisiert werden. Quelle: `https://github.com/andi-0309/opdracht`. Das Repository veröffentlicht pro Release genau eine stabil signierte APK mit gleichbleibender Paketkennung `eu.zerver.opdracht` und steigendem Android-Versioncode. Der Android-Update-Dialog bietet „In Obtainium hinzufügen“ über den offiziellen HTTPS-Redirect mit Installationshinweis, falls Obtainium fehlt.
+
+[In Obtainium hinzufügen](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522eu.zerver.opdracht%2522%252C%2522url%2522%253A%2522https%253A%252F%252Fgithub.com%252Fandi-0309%252Fopdracht%2522%252C%2522author%2522%253A%2522andi-0309%2522%252C%2522name%2522%253A%2522Opdracht%2522%257D). Direkter Deep Link bei installiertem Obtainium: `obtainium://add/https://github.com/andi-0309/opdracht`.
 
 Die Dateien landen als Actions-Artefakte und bei Tags zusätzlich am GitHub-Release. Für Android sind zwei Actions-Secrets notwendig: `OPDRACHT_ANDROID_KEYSTORE_BASE64` (Base64 des privaten PKCS12-Keystores mit Alias `opdracht`) und `OPDRACHT_ANDROID_KEYSTORE_PASSWORD`. Derselbe Schlüssel muss bei späteren Builds wiederverwendet und privat gesichert werden, damit Android die APK als Update akzeptiert. Es gibt keinen unsicheren Debug-Key-Fallback. Die CI entfernt die temporäre Schlüsseldatei nach jedem Android-Build.
 

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'update_action.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
@@ -99,6 +100,7 @@ class _OpdrachtShellState extends State<OpdrachtShell> {
               if (request.isForMainFrame == true && mounted) setState(() => loadFailed = true);
             },
           ),
+          const Positioned(right: 8, bottom: 8, child: UpdateAction()),
           if (loadFailed) Positioned.fill(child: ColoredBox(
             color: Theme.of(context).colorScheme.surface,
             child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [

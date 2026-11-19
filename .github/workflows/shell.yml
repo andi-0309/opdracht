@@ -34,6 +34,22 @@ jobs:
           channel: stable
           cache: true
       - run: python apps/shell/bootstrap.py
+      - name: Align app version with release tag
+        shell: python
+        env:
+          RELEASE_REF: ${{ github.ref_name }}
+          RELEASE_REF_TYPE: ${{ github.ref_type }}
+        run: |
+          import os, re
+          from pathlib import Path
+          path = Path('apps/shell/build/native/pubspec.yaml')
+          text = path.read_text()
+          version = re.search(r'^version: (\d+\.\d+\.\d+)\+(\d+)$', text, re.M)
+          assert version, 'Missing app version'
+          if os.environ['RELEASE_REF_TYPE'] == 'tag':
+              assert os.environ['RELEASE_REF'] == 'v' + version[1], 'Tag and app version must match'
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write('APP_VERSION=' + version[1] + '\n')
       - run: flutter pub get
         working-directory: apps/shell/build/native
       - name: Preserve resolved Flutter dependency lock
@@ -63,15 +79,15 @@ jobs:
         env:
           OPDRACHT_KEYSTORE_PATH: ${{ runner.temp }}/opdracht.jks
           OPDRACHT_KEYSTORE_PASSWORD: ${{ secrets.OPDRACHT_ANDROID_KEYSTORE_PASSWORD }}
-        run: flutter build apk --release
+        run: flutter build apk --release --dart-define=APP_VERSION=${{ env.APP_VERSION }}
       - name: Build Windows
         if: matrix.platform == 'windows'
         working-directory: apps/shell/build/native
-        run: flutter build windows --release
+        run: flutter build windows --release --dart-define=APP_VERSION=${{ env.APP_VERSION }}
       - name: Build Apple Silicon macOS app
         if: matrix.platform == 'macos'
         working-directory: apps/shell/build/native
-        run: flutter build macos --release
+        run: flutter build macos --release --dart-define=APP_VERSION=${{ env.APP_VERSION }}
       - name: Package Android
         if: matrix.platform == 'android'
         shell: bash
