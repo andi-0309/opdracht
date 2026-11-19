@@ -186,8 +186,9 @@ function focusQueue() {
     return dates.flatMap(date=>state.tasks.filter(task=>!task.completed_at && dateValue(task.scheduled_for)===date)).slice(0,10);
 }
 function focusQueuePanel() {
+    if(state.focus) return '';
     const tasks=focusQueue();
-    return tasks.length ? `<aside class="focus-queue" aria-labelledby="focus-queue-title"><h2 id="focus-queue-title">Nächste Aufgaben</h2><ul class="task-list">${tasks.map(task=>taskRow(task,true,true)).join('')}</ul></aside>` : '';
+    return tasks.length ? `<aside class="focus-queue" aria-labelledby="focus-queue-title"><h2 id="focus-queue-title">Nächste Aufgaben</h2><ul class="task-list" tabindex="0" aria-label="Nächste Aufgaben, seitlich scrollen">${tasks.map(task=>taskRow(task,true,true)).join('')}</ul></aside>` : '';
 }
 function nextTask() {
     const available=state.tasks.filter(task=>!task.completed_at);
@@ -202,7 +203,7 @@ function focusPanel() {
     const activeTask=state.tasks.find(t=>t.id===state.focus?.task_id);
     const selected=focusTask();
     const available=state.tasks.filter(t=>!t.completed_at);
-    return `<section class="focus-view"><div class="focus-clock"><div data-focus-timer class="timer" role="timer" aria-live="off" aria-label="Verstrichene Fokuszeit">00:00</div><p class="timer-label" role="status">${state.focus?'FOKUS LÄUFT':'BEREIT FÜR FOKUS'}</p><div class="focus-controls">${state.focus?`${activeTask?`<button class="button primary" data-action="finish-focus" data-id="${activeTask.id}">${icon('check')} Aufgabe abschließen</button>`:''}<button class="button subtle" data-action="stop-focus">${icon('square')} Timer stoppen &amp; Zeit speichern</button>`:available.length?`<button class="button primary" data-action="start-focus" ${selected?'':'disabled'}>${icon('play')} Fokus starten</button>`:'<button class="button primary" data-action="new-task">+ Aufgabe erstellen</button>'}</div></div><div class="focus-content"><section class="focus-task" data-content-key="${selected?.id||'empty'}" tabindex="0" aria-labelledby="focus-task-title">${selected?`${tag(taskQuest(selected))}<h2 id="focus-task-title">${escapeHtml(selected.title)}</h2>${selected.notes?`<div class="markdown focus-notes">${markdown(selected.notes)}</div>`:''}`:'<h2 id="focus-task-title">Keine offenen Aufgaben</h2>'}</section>${focusQueuePanel()}</div></section>`;
+    return `<section class="focus-view"><div class="focus-clock"><div data-focus-timer class="timer" role="timer" aria-live="off" aria-label="Verstrichene Fokuszeit">00:00</div><p class="timer-label" role="status">${state.focus?'FOKUS LÄUFT':'BEREIT FÜR FOKUS'}</p><div class="focus-controls">${state.focus?`${activeTask?`<button class="button primary" data-action="finish-focus" data-id="${activeTask.id}">${icon('check')} Aufgabe abschließen</button>`:''}<button class="button subtle" data-action="stop-focus">${icon('square')} Timer stoppen &amp; Zeit speichern</button>`:available.length?`<button class="button primary" data-action="start-focus" ${selected?'':'disabled'}>${icon('play')} Fokus starten</button>`:'<button class="button primary" data-action="new-task">+ Aufgabe erstellen</button>'}</div></div><div class="focus-content">${focusQueuePanel()}<section class="focus-task" data-content-key="${selected?.id||'empty'}" tabindex="0" aria-labelledby="focus-task-title">${selected?`${tag(taskQuest(selected))}<h2 id="focus-task-title">${escapeHtml(selected.title)}</h2>${selected.notes?`<div class="markdown focus-notes">${markdown(selected.notes)}</div>`:''}`:'<h2 id="focus-task-title">Keine offenen Aufgaben</h2>'}</section></div></section>`;
 }
 function focusScreen() {
     return `<section id="focus-workspace" class="focus-workspace"><header class="focus-toolbar"><h1>Fokus</h1></header>${focusPanel()}</section>`;
@@ -285,8 +286,8 @@ function render() {
     const previousContent=screen.querySelector('.focus-task');
     const contentPosition=previousContent ? {key:previousContent.dataset.contentKey,top:previousContent.scrollTop,focused:focused===previousContent} : null;
     const focusedAction=focused?.dataset.action;
-    const previousQueue=screen.querySelector('.focus-queue');
-    const queueScroll=previousQueue?.scrollTop || 0;
+    const previousQueue=screen.querySelector('.focus-queue .task-list');
+    const queueScroll=previousQueue?.scrollLeft || 0;
     const previousProgress=new Map(Array.from(screen.querySelectorAll('[data-progress-id]'),bar=>[bar.dataset.progressId,bar.style.width]));
     cancelTaskDrag();
     document.body.classList.toggle('focus-page',page==='focus');
@@ -315,8 +316,8 @@ function render() {
         target?.focus({preventScroll:true});
 
     }
-    const currentQueue=screen.querySelector('.focus-queue');
-    if(!pageChanged && currentQueue) currentQueue.scrollTop=queueScroll;
+    const currentQueue=screen.querySelector('.focus-queue .task-list');
+    if(!pageChanged && currentQueue) currentQueue.scrollLeft=queueScroll;
     const currentContent=screen.querySelector('.focus-task');
     if(!pageChanged && currentContent && contentPosition?.key===currentContent.dataset.contentKey) {
         currentContent.scrollTop=contentPosition.top;
@@ -642,7 +643,7 @@ function pwaError(error) {
     output.hidden = false;
 }
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=19').then(registration => {
+    navigator.serviceWorker.register('/sw.js?v=20').then(registration => {
         const watch = () => {
             const worker = registration.installing;
             worker?.addEventListener('statechange', () => {

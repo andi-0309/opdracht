@@ -1,7 +1,7 @@
 name: opdracht
 description: A minimal website shell for Opdracht.
 publish_to: none
-version: 0.6.7+12
+version: 0.6.8+13
 environment:
   sdk: '>=3.5.0 <4.0.0'
 dependencies:

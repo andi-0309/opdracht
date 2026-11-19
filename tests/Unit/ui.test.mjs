@@ -165,7 +165,7 @@ test('mobile focus uses dynamic viewport and safe areas in both orientations wit
     assert.match(css,/env\(safe-area-inset-left\)/);
     assert.doesNotMatch(css,/body[^{}]*{[^}]*overflow:\s*hidden/);
     const sw=fs.readFileSync(new URL('../../public/sw.js',import.meta.url),'utf8');
-    assert.match(sw,/opdracht-static-v19/);assert.match(sw,/app.js\?v=19/);assert.match(sw,/ui.svg\?v=6/);
+    assert.match(sw,/opdracht-static-v20/);assert.match(sw,/app.js\?v=20/);assert.match(sw,/ui.svg\?v=6/);
 });
 
 function dragFixture() {
@@ -403,10 +403,10 @@ test('page motion runs only on navigation, completion motion on changes, and red
 });
 test('cache 19 references agree across worker and Blade views while icon version stays 6',()=>{
     for(const file of ['public/sw.js','resources/views/app.blade.php','resources/views/login.blade.php']) {
-        const contents=fs.readFileSync(new URL('../../'+file,import.meta.url),'utf8');assert.match(contents,/app.css\?v=19/);assert.doesNotMatch(contents,/app\.(css|js)\?v=13/);
+        const contents=fs.readFileSync(new URL('../../'+file,import.meta.url),'utf8');assert.match(contents,/app.css\?v=20/);assert.doesNotMatch(contents,/app\.(css|js)\?v=13/);
     }
-    assert.match(source,/sw.js\?v=19/);assert.match(source,/ui.svg\?v=6/);
-    assert.match(fs.readFileSync(new URL('../../resources/views/login.blade.php',import.meta.url),'utf8'),/sw.js\?v=19/);
+    assert.match(source,/sw.js\?v=20/);assert.match(source,/ui.svg\?v=6/);
+    assert.match(fs.readFileSync(new URL('../../resources/views/login.blade.php',import.meta.url),'utf8'),/sw.js\?v=20/);
 });
 test('completion and reopening animate once without changing dates/focus or animating every refresh',()=>{
     const ui=app(),row=ui.node('motion-row'),details=ui.node('motion-details'),summary=ui.node('motion-summary');let cards=0,summaries=0;
@@ -573,4 +573,21 @@ test('failed modal save never switches focus and completed tasks do not offer Pl
     await ui.node('#editor-form').events.submit({preventDefault(){},submitter:{value:'focus'}});
     assert.equal(ui.node('#editor').open,true);assert.equal(ui.node('#editor-error').textContent,'Save failed');
     ui.run('state.tasks[0].completed_at="done";taskEditor(state.tasks[0]);');assert.doesNotMatch(ui.node('#editor-fields').innerHTML,/name="intent"/);
+});
+
+test('focus strip is shown only while idle and comes before the task content',()=>{
+    const ui=app();ui.run('state={today:"2026-11-19",tasks:[{id:1,title:"Work"}],quests:[],focus:null}');
+    const html=ui.run('focusPanel()');
+    assert.ok(html.indexOf('class="focus-queue"')<html.indexOf('class="focus-task"'));
+    assert.match(html,/tabindex="0" aria-label="Nächste Aufgaben, seitlich scrollen"/);
+    ui.run('state.focus={id:8,task_id:1}');
+    assert.doesNotMatch(ui.run('focusPanel()'),/class="focus-queue"/);
+    ui.run('state.focus=null');assert.match(ui.run('focusPanel()'),/class="focus-queue"/);
+});
+test('focus refresh preserves the horizontal strip position',()=>{
+    const ui=app(),strip=ui.node('strip');strip.scrollLeft=240;
+    ui.node('#screen').querySelector=selector=>selector==='.focus-queue .task-list'?strip:null;
+    ui.run('state={today:"2026-11-19",tasks:[{id:1,title:"Work"}],quests:[],weekly:{}};location.hash="#focus";render()');
+    let html='';Object.defineProperty(ui.node('#screen'),'innerHTML',{get(){return html;},set(value){html=value;strip.scrollLeft=0;}});
+    strip.scrollLeft=240;ui.run('render()');assert.equal(strip.scrollLeft,240);
 });

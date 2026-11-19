@@ -404,16 +404,16 @@ progress { accent-color: var(--accent); width: 100%; height: 8px; border: none; 
 .focus-controls .button:hover { background: var(--hover); color: var(--ink); }
 .focus-controls .ui-icon { width: 18px; height: 18px; }
 /* The queue reuses the weekly preview cards without planning/drag semantics. */
-.focus-content { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 320px); gap: 28px; overflow: hidden; }
-.focus-content:not(:has(.focus-queue)) { grid-template-columns: minmax(0, 1fr); }
-.focus-queue { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 3px 6px 12px 3px; scrollbar-gutter: stable; }
-.focus-queue h2 { margin: 0 0 12px; font-size: 16px; font-weight: 550; }
-.focus-queue .task { cursor: pointer; align-items: flex-start; user-select: auto; }
+.focus-content { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; gap: 20px; overflow: hidden; }
+.focus-queue { flex: 0 1 auto; min-height: 80px; min-width: 0; max-height: 45%; display: flex; flex-direction: column; }
+.focus-queue h2 { margin: 0 0 8px; font-size: 16px; font-weight: 550; flex-shrink: 0; }
+.focus-queue .task-list { display: flex; gap: 12px; min-height: 0; overflow-x: auto; overflow-y: auto; overscroll-behavior-x: contain; padding: 3px 3px 10px; }
+.focus-queue .task { flex: 0 0 min(320px, 85%); min-width: 0; margin: 0; cursor: pointer; align-items: flex-start; user-select: auto; }
 .focus-queue .task-title { font-size: 17px; min-height: 44px; }
 .focus-queue .task:has([aria-pressed="true"]) { border-color: var(--accent); background: var(--hover); }
 .focus-queue .task-actions { display: none; }
 .editor-focus-start { margin: 4px 0 12px; }
-.focus-task { flex: 0 1 auto; min-height: 0; overflow: auto; scrollbar-gutter: stable; overscroll-behavior: contain; padding: 0 8px 16px 0; text-align: left; }
+.focus-task { flex: 1; min-height: 0; overflow: auto; scrollbar-gutter: stable; overscroll-behavior: contain; padding: 0 8px 16px 0; text-align: left; }
 .focus-task:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .focus-task .tag { display: flex; font-size: 14px; margin: 0 0 10px; }
 .focus-task h2 { font-size: clamp(28px, 3vw, 42px); font-weight: 600; line-height: 1.3; letter-spacing: -.02em; margin: 0 0 18px; overflow-wrap: anywhere; max-width: 36ch; }
@@ -460,10 +460,6 @@ progress { accent-color: var(--accent); width: 100%; height: 8px; border: none; 
 }
 
 @media (max-width: 760px), (max-height: 500px) and (pointer: coarse) {
-    .focus-content { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(72px, 30%); gap: 12px; }
-    .focus-content:not(:has(.focus-queue)) { grid-template-rows: minmax(0, 1fr); }
-    .focus-queue { border-top: 1px solid var(--line); padding-top: 8px; }
-}
-@media (max-height: 500px) and (orientation: landscape) and (pointer: coarse) {
-    .focus-content { grid-template-columns: minmax(0, 1fr) minmax(240px, 38%); grid-template-rows: minmax(0, 1fr); gap: 18px; }
+    .focus-content { gap: 10px; }
+    .focus-queue .task { flex-basis: min(280px, 85%); }
 }
