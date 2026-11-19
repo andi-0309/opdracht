@@ -78,10 +78,11 @@ test('tablets and desktop windows never automatically enter focus fullscreen', (
     ui.run('window.screen={width:390,height:844};window.matchMedia=query=>({matches:query==="(orientation: landscape)"});syncImmersive()');
     assert.equal(ui.node('body').classList.values.has('immersive-open'),false);
 });
-test('focus has one task selector and one timer without a manual fullscreen toggle', () => {
+test('focus has one preview queue and one timer without a manual fullscreen toggle', () => {
     const ui=app();ui.run('state={tasks:[{id:1,title:"Test"}],quests:[],focus:null};');
     const html=ui.run('focusScreen()');
-    assert.equal((html.match(/id="focus-select"/g)||[]).length,1);
+    assert.equal((html.match(/class="focus-queue"/g)||[]).length,1);
+    assert.doesNotMatch(html,/<select/);
     assert.equal((html.match(/data-focus-timer/g)||[]).length,1);
     assert.doesNotMatch(html,/toggle-immersive/);
 });
@@ -109,7 +110,7 @@ test('focus defaults to saved first incomplete task, preserves explicit choice a
     const ui=app();
     ui.run('state={tasks:[{id:9,completed_at:"done"},{id:3,title:"First"},{id:1,title:"Second"}],quests:[]};');
     assert.equal(ui.run('focusTask().id'),3);
-    assert.match(ui.run('focusPanel()'),/value="3" selected/);
+    assert.match(ui.run('focusPanel()'),/data-id="3" aria-pressed="true"/);
     ui.run('selectedTaskId=1;');assert.equal(ui.run('focusTask().id'),1);
     ui.run('state.focus={id:8,task_id:3};');assert.equal(ui.run('focusTask().id'),3);
     ui.run('state.tasks.reverse();');assert.equal(ui.run('focusTask().id'),3);
@@ -164,7 +165,7 @@ test('mobile focus uses dynamic viewport and safe areas in both orientations wit
     assert.match(css,/env\(safe-area-inset-left\)/);
     assert.doesNotMatch(css,/body[^{}]*{[^}]*overflow:\s*hidden/);
     const sw=fs.readFileSync(new URL('../../public/sw.js',import.meta.url),'utf8');
-    assert.match(sw,/opdracht-static-v18/);assert.match(sw,/app.js\?v=18/);assert.match(sw,/ui.svg\?v=6/);
+    assert.match(sw,/opdracht-static-v19/);assert.match(sw,/app.js\?v=19/);assert.match(sw,/ui.svg\?v=6/);
 });
 
 function dragFixture() {
@@ -400,12 +401,12 @@ test('page motion runs only on navigation, completion motion on changes, and red
     assert.match(css,/dialog\[open\]::backdrop \{ animation:/);
     assert.doesNotMatch(css,/(?:^|\n)\.task\s*\{[^}]*animation:/);
 });
-test('cache 18 references agree across worker and Blade views while icon version stays 6',()=>{
+test('cache 19 references agree across worker and Blade views while icon version stays 6',()=>{
     for(const file of ['public/sw.js','resources/views/app.blade.php','resources/views/login.blade.php']) {
-        const contents=fs.readFileSync(new URL('../../'+file,import.meta.url),'utf8');assert.match(contents,/app.css\?v=18/);assert.doesNotMatch(contents,/app\.(css|js)\?v=13/);
+        const contents=fs.readFileSync(new URL('../../'+file,import.meta.url),'utf8');assert.match(contents,/app.css\?v=19/);assert.doesNotMatch(contents,/app\.(css|js)\?v=13/);
     }
-    assert.match(source,/sw.js\?v=18/);assert.match(source,/ui.svg\?v=6/);
-    assert.match(fs.readFileSync(new URL('../../resources/views/login.blade.php',import.meta.url),'utf8'),/sw.js\?v=18/);
+    assert.match(source,/sw.js\?v=19/);assert.match(source,/ui.svg\?v=6/);
+    assert.match(fs.readFileSync(new URL('../../resources/views/login.blade.php',import.meta.url),'utf8'),/sw.js\?v=19/);
 });
 test('completion and reopening animate once without changing dates/focus or animating every refresh',()=>{
     const ui=app(),row=ui.node('motion-row'),details=ui.node('motion-details'),summary=ui.node('motion-summary');let cards=0,summaries=0;
@@ -533,4 +534,43 @@ test('focus refresh retains content scroll and region focus for the same task, n
     content.scrollTop=180;ui.run('render()');assert.equal(content.scrollTop,180);assert.equal(focused,1);
     Object.defineProperty(content.dataset,'contentKey',{get(){return html.includes('data-content-key="2"')?'2':'1';},configurable:true});
     ui.run('state.tasks=[{id:2,title:"Different"}];render()');assert.equal(content.scrollTop,0);
+});
+
+test('focus queue groups today, undated, tomorrow in saved order, excludes other dates and done, caps at ten',()=>{
+    const ui=app();
+    ui.run('state={today:"2026-12-31",quests:[],tasks:[{id:1,scheduled_for:"2027-01-01"},{id:2},{id:3,scheduled_for:"2026-12-31"},{id:4,scheduled_for:"2026-12-30"},{id:5,scheduled_for:"2027-01-02"},{id:6,scheduled_for:"2026-12-31",completed_at:"done"},{id:7,scheduled_for:"2026-12-31"},{id:8,scheduled_for:null},{id:9,scheduled_for:"2027-01-01"}]};');
+    assert.deepEqual(Array.from(ui.run('focusQueue().map(task=>task.id)')),[3,7,2,8,1,9]);
+    assert.equal(ui.run('focusTask().id'),3);
+    ui.run('state.tasks.push(...Array.from({length:20},(_,i)=>({id:100+i,scheduled_for:"2026-12-31"})))');
+    assert.deepEqual(Array.from(ui.run('focusQueue().map(task=>task.id)')),[3,7,100,101,102,103,104,105,106,107]);
+});
+test('focus previews reuse weekly card markup with safe Markdown, selection and no dragging or completion',()=>{
+    const ui=app();ui.run('state={today:"2026-11-19",quests:[],tasks:[{id:1,title:"<work>",notes:"**Preview**\\n- Item"}]};');
+    const html=ui.run('focusQueuePanel()');
+    assert.match(html,/class="task /);assert.match(html,/class="markdown task-preview"/);assert.match(html,/<strong>Preview<\/strong>/);
+    assert.match(html,/&lt;work&gt;/);assert.match(html,/aria-pressed="true"/);
+    assert.doesNotMatch(html,/data-task-id|toggle-task|edit-task|reorder-help/);
+});
+test('queue clicks select idle tasks without starting a timer and open editor before changing a running task',async()=>{
+    const ui=app();ui.run('state={today:"2026-11-19",quests:[],tasks:[{id:1,title:"One"},{id:2,title:"Two"}]};');
+    const button=ui.node('select-two');button.dataset={action:'select-focus-task',id:'2'};button.closest=selector=>selector==='[data-action]'?button:null;
+    const before=ui.requests();await ui.events.click({target:button,detail:0});assert.equal(ui.run('selectedTaskId'),2);assert.equal(ui.requests(),before);
+    ui.run('state.focus={id:8,task_id:1};');await ui.events.click({target:button,detail:0});
+    assert.equal(ui.node('#editor').open,true);assert.equal(ui.run('state.focus.task_id'),1);
+});
+test('modal Play saves validated edits before starting selected task, then navigates to focus',async()=>{
+    const ui=app();ui.run('state={today:"2026-11-19",quests:[],tasks:[{id:2,title:"Work"}],focus:{id:8,task_id:1}};taskEditor(state.tasks[0]);');
+    assert.match(ui.node('#editor-fields').innerHTML,/type="submit"[^>]*name="intent" value="focus"/);
+    ui.node('#editor-form').querySelector=()=>({value:'Work'});
+    ui.run('calls=[];FormData=class {has(){return false;}};editorSave=async()=>{calls.push("save");};mutate=async(path,method,body)=>{calls.push([path,method,body.task_id]);};');
+    await ui.node('#editor-form').events.submit({preventDefault(){},submitter:{value:'focus'}});
+    assert.equal(ui.run('calls[0]'),'save');assert.deepEqual(Array.from(ui.run('calls[1]')),['/api/focus','POST',2]);
+    assert.equal(ui.run('location.hash'),'focus');assert.equal(ui.node('#editor').open,false);
+});
+test('failed modal save never switches focus and completed tasks do not offer Play',async()=>{
+    const ui=app();ui.run('state={today:"2026-11-19",quests:[],tasks:[{id:2,title:"Work"}]};taskEditor(state.tasks[0]);FormData=class {has(){return false;}};editorSave=async()=>{throw new Error("Save failed")};mutate=async()=>{throw new Error("Must not switch")};');
+    ui.node('#editor-form').querySelector=()=>({value:'Work'});
+    await ui.node('#editor-form').events.submit({preventDefault(){},submitter:{value:'focus'}});
+    assert.equal(ui.node('#editor').open,true);assert.equal(ui.node('#editor-error').textContent,'Save failed');
+    ui.run('state.tasks[0].completed_at="done";taskEditor(state.tasks[0]);');assert.doesNotMatch(ui.node('#editor-fields').innerHTML,/name="intent"/);
 });

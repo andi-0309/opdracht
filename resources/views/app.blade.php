@@ -10,8 +10,8 @@
     <link rel="icon" href="/icons/icon.svg?v=7" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=7">
     <script src="/theme.js?v=6"></script>
-    <link rel="stylesheet" href="/app.css?v=18">
-    <script src="/app.js?v=18" defer></script>
+    <link rel="stylesheet" href="/app.css?v=19">
+    <script src="/app.js?v=19" defer></script>
     <title>Opdracht</title>
 </head>
 <body>

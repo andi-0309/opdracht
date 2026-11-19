@@ -403,8 +403,16 @@ progress { accent-color: var(--accent); width: 100%; height: 8px; border: none; 
 .focus-controls .button.subtle { background: transparent; border-color: transparent; color: var(--muted); }
 .focus-controls .button:hover { background: var(--hover); color: var(--ink); }
 .focus-controls .ui-icon { width: 18px; height: 18px; }
-.focus-choose { flex-shrink: 0; width: min(100%, 640px); margin: 0; font-size: 14px; text-align: left; }
-.focus-choose select { margin-top: 4px; }
+/* The queue reuses the weekly preview cards without planning/drag semantics. */
+.focus-content { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 320px); gap: 28px; overflow: hidden; }
+.focus-content:not(:has(.focus-queue)) { grid-template-columns: minmax(0, 1fr); }
+.focus-queue { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 3px 6px 12px 3px; scrollbar-gutter: stable; }
+.focus-queue h2 { margin: 0 0 12px; font-size: 16px; font-weight: 550; }
+.focus-queue .task { cursor: pointer; align-items: flex-start; user-select: auto; }
+.focus-queue .task-title { font-size: 17px; min-height: 44px; }
+.focus-queue .task:has([aria-pressed="true"]) { border-color: var(--accent); background: var(--hover); }
+.focus-queue .task-actions { display: none; }
+.editor-focus-start { margin: 4px 0 12px; }
 .focus-task { flex: 0 1 auto; min-height: 0; overflow: auto; scrollbar-gutter: stable; overscroll-behavior: contain; padding: 0 8px 16px 0; text-align: left; }
 .focus-task:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .focus-task .tag { display: flex; font-size: 14px; margin: 0 0 10px; }
@@ -437,8 +445,6 @@ progress { accent-color: var(--accent); width: 100%; height: 8px; border: none; 
     .timer-label { font-size: 11px; }
     .focus-controls { gap: 6px; }
     .focus-controls .button { min-height: 44px; padding: 6px 10px; gap: 6px; font-size: 13px; line-height: 1.25; }
-    .focus-choose { font-size: 13px; }
-    .focus-choose select { min-height: 44px; padding: 6px 10px; margin-top: 2px; font-size: 16px; }
     .focus-task { padding: 8px 4px 12px 0; }
     .focus-task h2 { font-size: 26px; margin-bottom: 12px; }
     .focus-notes { font-size: 17px; line-height: 1.6; }
@@ -450,7 +456,14 @@ progress { accent-color: var(--accent); width: 100%; height: 8px; border: none; 
     .focus-page .focus-clock { gap: 2px; }
     .focus-page .timer { font-size: clamp(48px, 16dvh, 80px); }
     .focus-page #screen .focus-view { gap: 6px; }
-    .focus-page .focus-choose { display: flex; align-items: center; gap: 8px; width: 100%; }
-    .focus-page .focus-choose select { margin: 0; min-width: 0; flex: 1; }
     .focus-page .focus-task { padding: 6px 4px 8px 0; }
+}
+
+@media (max-width: 760px), (max-height: 500px) and (pointer: coarse) {
+    .focus-content { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(72px, 30%); gap: 12px; }
+    .focus-content:not(:has(.focus-queue)) { grid-template-rows: minmax(0, 1fr); }
+    .focus-queue { border-top: 1px solid var(--line); padding-top: 8px; }
+}
+@media (max-height: 500px) and (orientation: landscape) and (pointer: coarse) {
+    .focus-content { grid-template-columns: minmax(0, 1fr) minmax(240px, 38%); grid-template-rows: minmax(0, 1fr); gap: 18px; }
 }

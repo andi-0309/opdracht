@@ -148,9 +148,9 @@ function stats() {
     const active = state.quests.filter(q => !q.completed_at).length;
     return `<div class="stats-strip"><div class="stat"><span class="stat-label">Heute geschafft <span class="stat-decoration">✓</span></span><span class="stat-value">${done}<small>/ ${todayTasks.length}</small></span></div><div class="stat"><span class="stat-label">Fokus diese Woche <span class="stat-decoration">◷</span></span><span class="stat-value">${escapeHtml(duration(state.weekly.seconds))}</span></div><div class="stat"><span class="stat-label">Aktive Quests <span class="stat-decoration">◇</span></span><span class="stat-value">${active}</span></div></div>`;
 }
-function taskRow(task, compact = false) {
+function taskRow(task, compact = false, selectable = false) {
     const running = state.focus?.task_id === task.id;
-    return `<li class="task ${task.completed_at ? 'done' : ''}" data-task-id="${task.id}" ${!task.completed_at ? `tabindex="0" aria-label="${escapeHtml(task.title)} verschieben" aria-describedby="reorder-help" aria-keyshortcuts="ArrowUp ArrowDown"` : ''}>${!compact ? `<button class="task-check" role="checkbox" aria-checked="${Boolean(task.completed_at)}" aria-label="${escapeHtml(task.completed_at ? 'Wieder öffnen: ' : 'Erledigen: ')}${escapeHtml(task.title)}" data-action="toggle-task" data-id="${task.id}"><span class="task-check-box">${icon('check')}</span></button>` : ''}<div class="task-body"><button class="task-title" data-action="edit-task" data-id="${task.id}">${escapeHtml(task.title)}</button>${compact && task.notes ? `<div class="markdown task-preview">${markdown(task.notes)}</div>` : ''}<div class="task-meta">${tag(taskQuest(task))}${!compact && task.scheduled_for && dateValue(task.scheduled_for) !== state.today ? `<span>${dayLabel(task.scheduled_for)}</span>` : ''}${task.focus_seconds ? `<span>${duration(task.focus_seconds)}</span>` : ''}</div></div><div class="task-actions">${!compact && !task.completed_at ? `<button class="icon-button" data-action="focus-task" data-id="${task.id}" aria-label="Fokus für ${escapeHtml(task.title)}" title="Fokus">${icon(running ? 'timer' : 'play')}</button>` : ''}</div></li>`;
+    return `<li class="task ${task.completed_at ? 'done' : ''}" ${selectable ? `data-queue-id="${task.id}" data-action="select-focus-task" data-id="${task.id}"` : `data-task-id="${task.id}"`} ${!selectable && !task.completed_at ? `tabindex="0" aria-label="${escapeHtml(task.title)} verschieben" aria-describedby="reorder-help" aria-keyshortcuts="ArrowUp ArrowDown"` : ''}>${!compact ? `<button class="task-check" role="checkbox" aria-checked="${Boolean(task.completed_at)}" aria-label="${escapeHtml(task.completed_at ? 'Wieder öffnen: ' : 'Erledigen: ')}${escapeHtml(task.title)}" data-action="toggle-task" data-id="${task.id}"><span class="task-check-box">${icon('check')}</span></button>` : ''}<div class="task-body"><button class="task-title" data-action="${selectable ? 'select-focus-task' : 'edit-task'}" data-id="${task.id}" ${selectable ? `aria-pressed="${focusTask()?.id===task.id}"` : ''}>${escapeHtml(task.title)}</button>${compact && task.notes ? `<div class="markdown task-preview">${markdown(task.notes)}</div>` : ''}<div class="task-meta">${selectable?`<span>${!task.scheduled_for?'Ohne Datum':dateValue(task.scheduled_for)===state.today?'Heute':'Morgen'}</span>`:''}${tag(taskQuest(task))}${!compact && task.scheduled_for && dateValue(task.scheduled_for) !== state.today ? `<span>${dayLabel(task.scheduled_for)}</span>` : ''}${task.focus_seconds ? `<span>${duration(task.focus_seconds)}</span>` : ''}</div></div><div class="task-actions">${!compact && !task.completed_at ? `<button class="icon-button" data-action="focus-task" data-id="${task.id}" aria-label="Fokus für ${escapeHtml(task.title)}" title="Fokus">${icon(running ? 'timer' : 'play')}</button>` : ''}</div></li>`;
 }
 function questOptions(selected) {
     return '<option value="">Ohne Quest</option>'+state.quests.filter(q=>!q.completed_at || q.id===selected).map(q=>`<option value="${q.id}" ${q.id===selected?'selected':''}>${escapeHtml(q.title)}</option>`).join('');
@@ -179,9 +179,19 @@ function questsScreen() {
     const quests=state.quests.filter(q=>Boolean(q.completed_at)===showCompletedQuests);
     return header('Quests', '<button class="button primary" data-action="new-quest">+ Neue Quest</button>') + `<div class="tabs" role="group" aria-label="Quests filtern"><button class="${!showCompletedQuests?'active':''}" data-action="active-quests" aria-pressed="${!showCompletedQuests}">Aktiv · ${state.quests.filter(q=>!q.completed_at).length}</button><button class="${showCompletedQuests?'active':''}" data-action="completed-quests" aria-pressed="${showCompletedQuests}">Abgeschlossen · ${state.quests.filter(q=>q.completed_at).length}</button></div>` + (quests.length ? `<div class="quest-grid">${quests.map(q=>{const tasks=state.tasks.filter(t=>t.quest_id===q.id);const done=tasks.filter(t=>t.completed_at).length;return `<article class="quest-card" style="--quest-color:${color(q.color)}"><div class="quest-top"><span class="quest-icon" aria-hidden="true">${icon('target')}</span><div><button class="icon-button" data-action="edit-quest" data-id="${q.id}" aria-label="${escapeHtml(q.title)} bearbeiten">${icon('pencil')}</button></div></div><h2>${escapeHtml(q.title)}</h2>${q.why?`<h3>Warum ist es wichtig?</h3><p>${escapeHtml(q.why)}</p>`:''}${q.description ? `<h3>Worum geht es genau?</h3><p>${escapeHtml(q.description)}</p>` : ''}${q.weekly_minutes?`<div class="weekly-goal"><strong>Wochenziel</strong><span>${duration(state.weekly.quest_seconds?.[q.id]||0)} / ${duration(q.weekly_minutes*60)}</span><progress max="${q.weekly_minutes*60}" value="${Math.min(q.weekly_minutes*60,state.weekly.quest_seconds?.[q.id]||0)}" aria-label="Wochenzeit für ${escapeHtml(q.title)}"></progress></div>`:''}<div class="quest-progress"><span data-progress-id="quest-${q.id}" style="width:${tasks.length?Math.round(done/tasks.length*100):0}%"></span></div><div class="quest-footer"><span>${done} / ${tasks.length} Aufgaben</span><span>${duration(tasks.reduce((sum,t)=>sum+Number(t.focus_seconds||0),0))} Fokus</span></div></article>`;}).join('')}</div>` : `<div class="empty"><div class="empty-symbol">◇</div><h2>${showCompletedQuests?'Keine abgeschlossenen Quests.':'Keine Quests vorhanden.'}</h2>${!showCompletedQuests?'<button class="button primary" data-action="new-quest">Quest erstellen</button>':''}</div>`);
 }
+function focusQueue() {
+    const tomorrow=localDate(state.today);
+    tomorrow.setDate(tomorrow.getDate()+1);
+    const dates=[state.today, null, dateKey(tomorrow)];
+    return dates.flatMap(date=>state.tasks.filter(task=>!task.completed_at && dateValue(task.scheduled_for)===date)).slice(0,10);
+}
+function focusQueuePanel() {
+    const tasks=focusQueue();
+    return tasks.length ? `<aside class="focus-queue" aria-labelledby="focus-queue-title"><h2 id="focus-queue-title">Nächste Aufgaben</h2><ul class="task-list">${tasks.map(task=>taskRow(task,true,true)).join('')}</ul></aside>` : '';
+}
 function nextTask() {
     const available=state.tasks.filter(task=>!task.completed_at);
-    return available.find(task=>task.scheduled_for && dateValue(task.scheduled_for)<=state.today)
+    return focusQueue()[0] || available.find(task=>task.scheduled_for && dateValue(task.scheduled_for)<=state.today)
         || available.filter(task=>task.scheduled_for).sort((a,b)=>dateValue(a.scheduled_for).localeCompare(dateValue(b.scheduled_for)))[0]
         || available[0];
 }
@@ -192,7 +202,7 @@ function focusPanel() {
     const activeTask=state.tasks.find(t=>t.id===state.focus?.task_id);
     const selected=focusTask();
     const available=state.tasks.filter(t=>!t.completed_at);
-    return `<section class="focus-view"><div class="focus-clock"><div data-focus-timer class="timer" role="timer" aria-live="off" aria-label="Verstrichene Fokuszeit">00:00</div><p class="timer-label" role="status">${state.focus?'FOKUS LÄUFT':'BEREIT FÜR FOKUS'}</p><div class="focus-controls">${state.focus?`${activeTask?`<button class="button primary" data-action="finish-focus" data-id="${activeTask.id}">${icon('check')} Aufgabe abschließen</button>`:''}<button class="button subtle" data-action="stop-focus">${icon('square')} Timer stoppen &amp; Zeit speichern</button>`:available.length?`<button class="button primary" data-action="start-focus" ${selected?'':'disabled'}>${icon('play')} Fokus starten</button>`:'<button class="button primary" data-action="new-task">+ Aufgabe erstellen</button>'}</div></div>${!state.focus && available.length?`<label class="focus-choose">Aufgabe<select id="focus-select"><option value="">Aufgabe auswählen …</option>${available.map(t=>`<option value="${t.id}" ${t.id===selected?.id?'selected':''}>${escapeHtml(t.title)}</option>`).join('')}</select></label>`:''}<section class="focus-task" data-content-key="${selected?.id||'empty'}" tabindex="0" aria-labelledby="focus-task-title">${selected?`${tag(taskQuest(selected))}<h2 id="focus-task-title">${escapeHtml(selected.title)}</h2>${selected.notes?`<div class="markdown focus-notes">${markdown(selected.notes)}</div>`:''}`:'<h2 id="focus-task-title">Keine offenen Aufgaben</h2>'}</section></section>`;
+    return `<section class="focus-view"><div class="focus-clock"><div data-focus-timer class="timer" role="timer" aria-live="off" aria-label="Verstrichene Fokuszeit">00:00</div><p class="timer-label" role="status">${state.focus?'FOKUS LÄUFT':'BEREIT FÜR FOKUS'}</p><div class="focus-controls">${state.focus?`${activeTask?`<button class="button primary" data-action="finish-focus" data-id="${activeTask.id}">${icon('check')} Aufgabe abschließen</button>`:''}<button class="button subtle" data-action="stop-focus">${icon('square')} Timer stoppen &amp; Zeit speichern</button>`:available.length?`<button class="button primary" data-action="start-focus" ${selected?'':'disabled'}>${icon('play')} Fokus starten</button>`:'<button class="button primary" data-action="new-task">+ Aufgabe erstellen</button>'}</div></div><div class="focus-content"><section class="focus-task" data-content-key="${selected?.id||'empty'}" tabindex="0" aria-labelledby="focus-task-title">${selected?`${tag(taskQuest(selected))}<h2 id="focus-task-title">${escapeHtml(selected.title)}</h2>${selected.notes?`<div class="markdown focus-notes">${markdown(selected.notes)}</div>`:''}`:'<h2 id="focus-task-title">Keine offenen Aufgaben</h2>'}</section>${focusQueuePanel()}</div></section>`;
 }
 function focusScreen() {
     return `<section id="focus-workspace" class="focus-workspace"><header class="focus-toolbar"><h1>Fokus</h1></header>${focusPanel()}</section>`;
@@ -275,7 +285,8 @@ function render() {
     const previousContent=screen.querySelector('.focus-task');
     const contentPosition=previousContent ? {key:previousContent.dataset.contentKey,top:previousContent.scrollTop,focused:focused===previousContent} : null;
     const focusedAction=focused?.dataset.action;
-    const focusedSelect=focused?.id;
+    const previousQueue=screen.querySelector('.focus-queue');
+    const queueScroll=previousQueue?.scrollTop || 0;
     const previousProgress=new Map(Array.from(screen.querySelectorAll('[data-progress-id]'),bar=>[bar.dataset.progressId,bar.style.width]));
     cancelTaskDrag();
     document.body.classList.toggle('focus-page',page==='focus');
@@ -300,10 +311,12 @@ function render() {
     syncImmersive();
     if(focusedAction) {
         const scope=screen;
-        const target=Array.from(scope.querySelectorAll('[data-action]')).find(button=>button.dataset.action===focusedAction && button.dataset.id===focused.dataset.id);
+        const target=Array.from(scope.querySelectorAll('button[data-action]')).find(button=>button.dataset.action===focusedAction && button.dataset.id===focused.dataset.id);
         target?.focus({preventScroll:true});
 
-    } else if(focusedSelect==='focus-select') document.getElementById(focusedSelect)?.focus({preventScroll:true});
+    }
+    const currentQueue=screen.querySelector('.focus-queue');
+    if(!pageChanged && currentQueue) currentQueue.scrollTop=queueScroll;
     const currentContent=screen.querySelector('.focus-task');
     if(!pageChanged && currentContent && contentPosition?.key===currentContent.dataset.contentKey) {
         currentContent.scrollTop=contentPosition.top;
@@ -323,14 +336,14 @@ function openEditor(title, fields, onSave) {
     document.querySelector('#editor-fields').innerHTML=fields;
     document.querySelector('#editor-error').hidden=true;
     editorReturnFocus=document.activeElement;
-    editorForm.querySelector('[type="submit"]').textContent='Speichern';
+    editorForm.querySelector('.dialog-actions [type="submit"]').textContent='Speichern';
     editorSave=onSave;editor.showModal();
     document.querySelector('#editor-fields').querySelector('[autofocus]')?.focus();
 }
 function taskEditor(task, date=state.today) {
     editorTarget=task?{type:'task',id:task.id}:null;
-    openEditor(task?'Aufgabe bearbeiten':'Aufgabe hinzufügen',`<label>Aufgabe<input name="title" value="${escapeHtml(task?.title)}" maxlength="200" required autofocus autocomplete="off" enterkeyhint="done"></label><label>Beschreibung<textarea name="notes" maxlength="10000" rows="4">${escapeHtml(task?.notes)}</textarea></label><div class="form-row"><label>Quest<select name="quest_id">${questOptions(task?.quest_id)}</select></label><label>Tag<input type="date" name="scheduled_for" value="${escapeHtml(dateValue(task?task.scheduled_for:date))}"></label></div>${task?`<label class="check-label"><input type="checkbox" name="completed" ${task.completed_at?'checked':''}> Aufgabe abgeschlossen</label><button type="button" class="text-button" data-action="delete-task" data-id="${task.id}">Aufgabe löschen</button>`:''}`,async data=>{if(!task && !state.focus) selectedTaskId=null;await mutate(task?`/api/tasks/${task.id}`:'/api/tasks',task?'PATCH':'POST',{title:data.get('title').trim(),notes:data.get('notes'),scheduled_for:data.get('scheduled_for')||null,quest_id:data.get('quest_id')?Number(data.get('quest_id')):null,...(task?{completed:data.has('completed')}:{})});});
-    if(!task) editorForm.querySelector('[type="submit"]').textContent='Aufgabe hinzufügen';
+    openEditor(task?'Aufgabe bearbeiten':'Aufgabe hinzufügen',`<label>Aufgabe<input name="title" value="${escapeHtml(task?.title)}" maxlength="200" required autofocus autocomplete="off" enterkeyhint="done"></label><label>Beschreibung<textarea name="notes" maxlength="10000" rows="4">${escapeHtml(task?.notes)}</textarea></label><div class="form-row"><label>Quest<select name="quest_id">${questOptions(task?.quest_id)}</select></label><label>Tag<input type="date" name="scheduled_for" value="${escapeHtml(dateValue(task?task.scheduled_for:date))}"></label></div>${task?`${!task.completed_at?`<button type="submit" class="button subtle editor-focus-start" name="intent" value="focus" aria-label="Aufgabe speichern und Fokus starten">${icon('play')} Fokus starten</button>`:''}<label class="check-label"><input type="checkbox" name="completed" ${task.completed_at?'checked':''}> Aufgabe abgeschlossen</label><button type="button" class="text-button" data-action="delete-task" data-id="${task.id}">Aufgabe löschen</button>`:''}`,async data=>{if(!task && !state.focus) selectedTaskId=null;await mutate(task?`/api/tasks/${task.id}`:'/api/tasks',task?'PATCH':'POST',{title:data.get('title').trim(),notes:data.get('notes'),scheduled_for:data.get('scheduled_for')||null,quest_id:data.get('quest_id')?Number(data.get('quest_id')):null,...(task?{completed:data.has('completed')}:{})});});
+    if(!task) editorForm.querySelector('.dialog-actions [type="submit"]').textContent='Aufgabe hinzufügen';
 }
 function questEditor(quest) {
     editorTarget=quest?{type:'quest',id:quest.id}:null;
@@ -362,6 +375,11 @@ document.addEventListener('click',async event=>{
         if(action==='next-week'){weekOffset++;return render();}
         if(action==='current-week'){weekOffset=0;return render();}
         if(action==='active-quests'||action==='completed-quests'){showCompletedQuests=action==='completed-quests';return render();}
+        if(action==='select-focus-task'&&task&&!task.completed_at){
+            if(event.target.closest('a')) return;
+            if(state.focus && state.focus.task_id!==id) return taskEditor(task);
+            selectedTaskId=id;return render();
+        }
         if(action==='focus-task'){selectedTaskId=id;location.hash='focus';return render();}
         button.disabled=true;
         if(action==='toggle-task'&&task) await mutate(`/api/tasks/${id}`,'PATCH',{completed:!task.completed_at});
@@ -582,6 +600,8 @@ editor.addEventListener('cancel',event=>{if(editorSubmitting)event.preventDefaul
 editorForm.addEventListener('keydown',event=>{
     if(event.key==='Enter' && (event.ctrlKey || event.metaKey) && !event.isComposing) {
         event.preventDefault();if(!editorSubmitting)editorForm.requestSubmit();
+    } else if(event.key==='Enter' && event.target?.matches('input:not([type="checkbox"]):not([type="radio"])') && !event.isComposing) {
+        event.preventDefault();if(!editorSubmitting)editorForm.requestSubmit();
     }
 });
 editorForm.addEventListener('submit',async event=>{
@@ -591,11 +611,20 @@ editorForm.addEventListener('submit',async event=>{
     editorSubmitting=true;editorForm.setAttribute('aria-busy','true');
     const buttons=Array.from(editorForm.querySelectorAll('button'));
     buttons.forEach(button=>button.disabled=true);
-    try {await editorSave(new FormData(editorForm));editor.close();}
+    try {
+        const data=new FormData(editorForm);
+        const startTask=event.submitter?.value==='focus' && editorTarget?.type==='task' ? editorTarget.id : null;
+        if(startTask && data.has('completed')) throw new Error('Öffne die Aufgabe wieder, bevor du den Fokus startest.');
+        await editorSave(data);
+        if(startTask) {
+            await mutate('/api/focus','POST',{task_id:startTask});
+            selectedTaskId=startTask;location.hash='focus';render();
+        }
+        editor.close();
+    }
     catch(error){const output=document.querySelector('#editor-error');output.textContent=error.message;output.hidden=false;output.focus();}
     finally{editorSubmitting=false;editorForm.removeAttribute('aria-busy');buttons.forEach(button=>button.disabled=false);}
 });
-document.addEventListener('change',event=>{if(event.target.id==='focus-select'){selectedTaskId=Number(event.target.value)||null;render();}});
 function setConnection(label, unavailable) { document.querySelector('.connection').classList.toggle('offline', unavailable); document.querySelector('#connection-text').textContent=label; }
 function connectionChanged(){const online=navigator.onLine;setConnection(online?'Verbinde …':'Offline',!online);if(!online)showError('Du bist offline. Angezeigte Daten können veraltet sein. Änderungen benötigen eine Verbindung.');else if(state)refresh();}
 window.addEventListener('online',connectionChanged);window.addEventListener('offline',connectionChanged);
@@ -613,7 +642,7 @@ function pwaError(error) {
     output.hidden = false;
 }
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=18').then(registration => {
+    navigator.serviceWorker.register('/sw.js?v=19').then(registration => {
         const watch = () => {
             const worker = registration.installing;
             worker?.addEventListener('statechange', () => {
