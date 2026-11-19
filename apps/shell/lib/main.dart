@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'update_action.dart';
+import 'release_update.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
@@ -56,7 +57,15 @@ class _OpdrachtShellState extends State<OpdrachtShell> {
         onPopInvokedWithResult: (didPop, result) async {
           if (!didPop && controller != null) await controller!.goBack();
         },
-        child: Scaffold(body: SafeArea(child: Stack(children: [
+        child: Scaffold(
+          bottomNavigationBar: SafeArea(top: false, child: SizedBox(height: 40, child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              const Text('Opdracht · $shellVersion', style: TextStyle(fontSize: 12)),
+              const UpdateAction(),
+            ]),
+          ))),
+          body: SafeArea(child: Stack(children: [
           InAppWebView(
             webViewEnvironment: widget.environment,
             initialUrlRequest: URLRequest(url: WebUri(homeUrl)),
@@ -100,7 +109,6 @@ class _OpdrachtShellState extends State<OpdrachtShell> {
               if (request.isForMainFrame == true && mounted) setState(() => loadFailed = true);
             },
           ),
-          const Positioned(right: 8, bottom: 8, child: UpdateAction()),
           if (loadFailed) Positioned.fill(child: ColoredBox(
             color: Theme.of(context).colorScheme.surface,
             child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
