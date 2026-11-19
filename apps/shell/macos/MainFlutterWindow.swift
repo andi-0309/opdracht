@@ -38,7 +38,7 @@ class MainFlutterWindow: NSWindow {
           result(FlutterError(code: "invalid_theme", message: "Expected brightness boolean", details: nil))
           return
         }
-        self.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+        self.appearance = nil // Keep following system appearance changes.
         self.backgroundColor = dark
           ? NSColor(srgbRed: 23/255, green: 29/255, blue: 25/255, alpha: 1)
           : NSColor(srgbRed: 247/255, green: 248/255, blue: 242/255, alpha: 1)
