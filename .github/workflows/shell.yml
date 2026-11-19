@@ -14,7 +14,7 @@ jobs:
           - platform: android
             os: ubuntu-latest
           - platform: windows
-            os: windows-latest
+            os: windows-2022
           - platform: macos
             os: macos-15-intel
     runs-on: ${{ matrix.os }}
