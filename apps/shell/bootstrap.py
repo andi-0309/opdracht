@@ -5,7 +5,10 @@ import subprocess
 
 source = Path(__file__).resolve().parent
 project = source / 'build' / 'native'
-subprocess.run(['flutter', 'create', '--no-pub', '--platforms=android,windows,macos',
+flutter = shutil.which('flutter')
+if flutter is None:
+    raise RuntimeError('Flutter SDK executable is not available on PATH')
+subprocess.run([flutter, 'create', '--no-pub', '--platforms=android,windows,macos',
                 '--org=eu.zerver', '--project-name=opdracht', str(project)], check=True)
 for name in ['lib', 'test']:
     shutil.rmtree(project / name, ignore_errors=True)
