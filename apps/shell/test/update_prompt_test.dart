@@ -19,7 +19,7 @@ void main() {
   });
   testWidgets('new release opens a dismissible update modal', (tester) async {
     await tester.pumpWidget(MaterialApp(home: UpdatePrompt(
-      loadUpdate: () async => ReleaseUpdate('0.7.0', Uri.parse('$repositoryUrl/releases/download/v0.7.0/Opdracht-Windows-x64.zip')),
+      loadUpdate: () async => ReleaseUpdate('0.7.0', Uri.parse('$repositoryUrl/releases/download/v0.7.0/Opdracht-Windows-x64-Setup.exe')),
       child: const Scaffold(body: Text('Website')),
     )));
     await tester.pumpAndSettle();

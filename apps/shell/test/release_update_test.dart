@@ -27,6 +27,7 @@ void main() {
       expect(update?.version, '0.7.0');
       expect(update?.download.path, endsWith(assetForPlatform(platform)!));
     }
+    expect(assetForPlatform('windows'), 'Opdracht-Windows-x64-Setup.exe');
     expect(ReleaseUpdate.fromJson(release(), 'macos', '0.6.1'), isNull);
     expect(ReleaseUpdate.fromJson(release(), 'linux', '0.6.1'), isNull);
   });

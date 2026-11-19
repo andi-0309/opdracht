@@ -95,6 +95,17 @@ test('theme follows system initially and on changes, ignoring stored preferences
     assert.equal(root.dataset.theme,'dark');assert.equal(themeColor,'#171d19');
     media.matches=false;listeners.change();assert.equal(root.dataset.theme,'light');assert.equal(root.style.colorScheme,'light');
 });
+test('native system theme takes precedence over an inconsistent WebView media query and updates live', () => {
+    const code=fs.readFileSync(new URL('../../public/theme.js',import.meta.url),'utf8');
+    const listeners={};const media={matches:false,addEventListener(name,callback){listeners[name]=callback;}};
+    const root={dataset:{},style:{}};
+    const window={__opdrachtTheme:'dark',matchMedia(){return media;},addEventListener(name,callback){listeners[name]=callback;}};
+    vm.runInNewContext(code,{window,document:{documentElement:root,addEventListener(){},querySelector(){return null;}}});
+    assert.equal(root.dataset.theme,'dark');
+    listeners.change();assert.equal(root.dataset.theme,'dark');
+    window.__opdrachtTheme='light';listeners['opdracht:theme']();assert.equal(root.dataset.theme,'light');
+    assert.equal(root.style.colorScheme,'light');
+});
 test('all static SVG references exist and both pages omit the theme switcher', () => {
     const sprite=fs.readFileSync(new URL('../../public/icons/ui.svg',import.meta.url),'utf8');
     const ids=new Set([...sprite.matchAll(/<symbol id="([a-z-]+)"/g)].map(match=>match[1]));
