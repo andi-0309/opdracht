@@ -157,7 +157,7 @@ test('mobile focus uses dynamic viewport and safe areas in both orientations wit
     assert.match(css,/env\(safe-area-inset-left\)/);
     assert.doesNotMatch(css,/body[^{}]*{[^}]*overflow:\s*hidden/);
     const sw=fs.readFileSync(new URL('../../public/sw.js',import.meta.url),'utf8');
-    assert.match(sw,/opdracht-static-v12/);assert.match(sw,/app.js\?v=12/);assert.match(sw,/ui.svg\?v=6/);
+    assert.match(sw,/opdracht-static-v13/);assert.match(sw,/app.js\?v=13/);assert.match(sw,/ui.svg\?v=6/);
 });
 
 function dragFixture() {
@@ -307,11 +307,11 @@ test('row keyboard reorders in both directions and ignores arrows bubbling from 
     }
 });
 
-test('week columns keep a 280px minimum at every breakpoint and desktop main is unrestricted',()=>{
+test('week columns keep a 336px minimum at every breakpoint and desktop main is unrestricted',()=>{
     const css=fs.readFileSync(new URL('../../public/app.css',import.meta.url),'utf8');
     const grids=[...css.matchAll(/\.week-grid\s*\{([^}]+)\}/g)].map(match=>match[1]);
     assert.ok(grids.some(rule=>/overflow-x: auto/.test(rule)));
-    for(const rule of grids.filter(rule=>rule.includes('grid-template-columns'))) assert.match(rule,/repeat\(7, minmax\(280px, 1fr\)\)/);
+    for(const rule of grids.filter(rule=>rule.includes('grid-template-columns'))) assert.match(rule,/repeat\(7, minmax\(336px, 1fr\)\)/);
     assert.match(css,/\.app-layout main \{[^}]*max-width: none; width: 100%/);
     assert.match(css,/\.task-list \{[^}]*display: grid; gap: 12px/);
     assert.match(css,/\.task \{[^}]*border: 1px solid var\(--line\);[^}]*border-radius: 12px; background: var\(--paper\); box-shadow:/);
@@ -324,7 +324,9 @@ test('Today and each week day split completed cards into closed editable/reopena
         assert.ok(completed.length);
         for(const [whole,contents] of completed) {
             assert.doesNotMatch(whole,/<details[^>]*\sopen(?:\s|>)/);
-            assert.match(contents,/data-action="edit-task"/);assert.match(contents,/Wieder öffnen:/);
+            assert.match(contents,/data-action="edit-task"/);
+            if(html.includes('week-grid')) assert.doesNotMatch(contents,/toggle-task|role="checkbox"/);
+            else assert.match(contents,/Wieder öffnen:/);
             assert.doesNotMatch(contents,/active-task-list|aria-keyshortcuts| verschieben"/);
         }
         const active=html.replace(/<details[\s\S]*?<\/details>/g,'');
@@ -391,11 +393,11 @@ test('page motion runs only on navigation, completion motion on changes, and red
     assert.match(css,/dialog\[open\]::backdrop \{ animation:/);
     assert.doesNotMatch(css,/(?:^|\n)\.task\s*\{[^}]*animation:/);
 });
-test('cache 12 references agree across worker and Blade views while icon version stays 6',()=>{
+test('cache 13 references agree across worker and Blade views while icon version stays 6',()=>{
     for(const file of ['public/sw.js','resources/views/app.blade.php','resources/views/login.blade.php']) {
-        const contents=fs.readFileSync(new URL('../../'+file,import.meta.url),'utf8');assert.match(contents,/app.css\?v=12/);assert.doesNotMatch(contents,/app\.(css|js)\?v=11/);
+        const contents=fs.readFileSync(new URL('../../'+file,import.meta.url),'utf8');assert.match(contents,/app.css\?v=13/);assert.doesNotMatch(contents,/app\.(css|js)\?v=12/);
     }
-    assert.match(source,/sw.js\?v=12/);assert.match(source,/ui.svg\?v=6/);
+    assert.match(source,/sw.js\?v=13/);assert.match(source,/ui.svg\?v=6/);
 });
 test('completion and reopening animate once without changing dates/focus or animating every refresh',()=>{
     const ui=app(),row=ui.node('motion-row'),details=ui.node('motion-details'),summary=ui.node('motion-summary');let cards=0,summaries=0;
@@ -432,11 +434,16 @@ test('focus renders complete task notes and chooses newly available due work ove
     assert.equal(ui.run('focusTask().id'),2);assert.match(ui.run('focusPanel()'),/<strong>All content<\/strong>/);
     ui.run('state.focus={id:9,task_id:1}');assert.equal(ui.run('focusTask().id'),1);
 });
-test('weekly cards show Markdown preview without quick-start and today quick capture includes notes and quest',()=>{
-    const ui=app();ui.run('state={today:"2026-11-19",tasks:[],quests:[{id:1,title:"Quest"}],focus:null};');
+test('weekly cards show Markdown preview without quick-start and Today uses one modal creation button',()=>{
+    const ui=app();ui.run('state={today:"2026-11-19",tasks:[],quests:[{id:1,title:"Quest"}],weekly:{},focus:null};');
     const card=ui.run('taskRow({id:1,title:"Work",notes:"- First\\n- Second"},true)');
     assert.match(card,/task-preview/);assert.match(card,/<li>First<\/li>/);assert.doesNotMatch(card,/data-action="focus-task"/);
-    const form=ui.run('taskSection("Heute",[],"",state.today)');assert.match(form,/name="notes"/);assert.match(form,/name="quest_id"/);
+    const today=ui.run('todayScreen()');
+    assert.equal((today.match(/data-action="new-task"/g)||[]).length,1);
+    assert.match(today,/>Aufgabe hinzufügen<\/button>/);
+    assert.doesNotMatch(today,/quick-add|<input|<textarea|<select/);
+    ui.run('taskEditor(null)');
+    const form=ui.node('#editor-fields').innerHTML;assert.match(form,/name="notes"/);assert.match(form,/name="quest_id"/);
     const view=fs.readFileSync(new URL('../../resources/views/app.blade.php',import.meta.url),'utf8');
     assert.deepEqual([...view.matchAll(/data-page="([a-z]+)"/g)].map(m=>m[1]),['focus','today','week','review','quests']);
 });
@@ -445,4 +452,53 @@ test('logbook splits midnight sessions between days and keeps titles escaped in 
     const days=ui.run('sessionDays(reviewData.sessions,"2026-11-16")');assert.equal(days[2].entries[0].seconds,1800);assert.equal(days[3].entries[0].seconds,1800);
     const html=ui.run('reviewScreen()');assert.match(html,/&lt;b&gt;Title/);assert.match(html,/&lt;script&gt;bad/);assert.equal((html.match(/class="log-day"/g)||[]).length,7);
     ui.run('reviewDrafts.set("2026-11-16","Unsaved draft")');assert.match(ui.run('reviewScreen()'),/Unsaved draft/);
+});
+
+test('week completion is modal-only for active and completed cards, while Today retains checkboxes',()=>{
+    const ui=app();ui.run('state={today:"2026-11-19",tasks:[{id:1,title:"Work",scheduled_for:"2026-11-19"},{id:2,title:"Done",scheduled_for:"2026-11-19",completed_at:"done"}],quests:[],weekly:{}}');
+    assert.doesNotMatch(ui.run('weekScreen()'),/toggle-task|role="checkbox"/);
+    assert.match(ui.run('todayScreen()'),/toggle-task/);
+    ui.run('taskEditor(state.tasks[0])');assert.match(ui.node('#editor-fields').innerHTML,/name="completed"/);
+});
+test('task modal defaults to today and places title, description, quest and date in keyboard order',()=>{
+    const ui=app();ui.run('state={today:"2026-11-19",tasks:[],quests:[{id:1,title:"Quest"}],focus:null};taskEditor(null)');
+    const html=ui.node('#editor-fields').innerHTML;
+    assert.match(html,/name="title"[^>]*required autofocus autocomplete="off"/);
+    assert.match(html,/name="scheduled_for" value="2026-11-19"/);
+    assert.ok(html.indexOf('name="title"')<html.indexOf('name="notes"'));
+    assert.ok(html.indexOf('name="notes"')<html.indexOf('name="quest_id"'));
+    assert.ok(html.indexOf('name="quest_id"')<html.indexOf('name="scheduled_for"'));
+    assert.doesNotMatch(html,/name="completed"|delete-task/);
+});
+test('modal Ctrl/Cmd Enter submits once, leaves plain textarea Enter alone and ignores composition',()=>{
+    const ui=app(),form=ui.node('#editor-form');let submissions=0,prevented=0;form.requestSubmit=()=>submissions++;
+    for(const modifiers of [{ctrlKey:true},{metaKey:true}]) form.events.keydown({key:'Enter',...modifiers,preventDefault(){prevented++;}});
+    form.events.keydown({key:'Enter',preventDefault(){throw Error('Textarea newline blocked');}});
+    form.events.keydown({key:'Enter',ctrlKey:true,isComposing:true,preventDefault(){throw Error('Composition blocked');}});
+    ui.run('editorSubmitting=true');form.events.keydown({key:'Enter',ctrlKey:true,preventDefault(){prevented++;}});
+    assert.equal(submissions,2);assert.equal(prevented,3);
+});
+test('modal prevents duplicate saves and cancellation while pending, preserves fields on error',async()=>{
+    const ui=app(),form=ui.node('#editor-form');let focused=0;
+    ui.node('#editor-error').focus=()=>focused++;
+    const title=ui.node('title');title.value='Task';form.querySelector=()=>title;
+    ui.run('FormData=class {};editorSave=()=>new Promise((resolve,reject)=>{failSave=reject;});');
+    const saving=form.events.submit({preventDefault(){}});
+    assert.equal(ui.run('editorSubmitting'),true);assert.equal(form.attributes['aria-busy'],'true');
+    let cancelled=false;ui.node('#editor').events.cancel({preventDefault(){cancelled=true;}});assert.equal(cancelled,true);
+    await form.events.submit({preventDefault(){}});
+    ui.run('failSave(new Error("Nicht gespeichert"))');await saving;
+    assert.equal(ui.node('#editor-error').textContent,'Nicht gespeichert');assert.equal(focused,1);
+    assert.equal(title.value,'Task');assert.equal(ui.run('editorSubmitting'),false);assert.equal(form.attributes['aria-busy'],undefined);
+});
+test('modal close restores keyboard focus to opener and clears stale edit state',()=>{
+    const ui=app(),opener=ui.node('opener');let focused=0;opener.isConnected=true;opener.focus=()=>focused++;
+    ui.run('editorReturnFocus=document.querySelector("opener");editorTarget={type:"task",id:1};editorSave=()=>{};');
+    ui.node('#editor').events.close();assert.equal(focused,1);assert.equal(ui.run('editorTarget'),null);assert.equal(ui.run('editorSave'),null);
+});
+test('visible screens omit redundant instructions but retain accessible reorder help and error notices',()=>{
+    const ui=app();ui.run('state={today:"2026-11-19",tasks:[],quests:[],focus:null,weekly:{}}');
+    assert.doesNotMatch(ui.run('weekScreen()+focusScreen()'),/Aufgabenkarte ziehen|serverseitig|Beim Stoppen|EINE AUFGABE|Navigation wieder ein/);
+    const view=fs.readFileSync(new URL('../../resources/views/app.blade.php',import.meta.url),'utf8');
+    assert.match(view,/id="reorder-help" class="sr-only"/);assert.match(view,/id="editor-error"[^>]*role="alert"/);
 });

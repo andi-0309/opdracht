@@ -1,6 +1,5 @@
 import 'dart:io';
-import 'update_action.dart';
-import 'release_update.dart';
+import 'update_prompt.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
@@ -52,19 +51,12 @@ class _OpdrachtShellState extends State<OpdrachtShell> {
       themeMode: ThemeMode.system,
       theme: ThemeData(brightness: Brightness.light),
       darkTheme: ThemeData(brightness: Brightness.dark),
-      home: PopScope(
+      home: UpdatePrompt(child: PopScope(
         canPop: !canGoBack,
         onPopInvokedWithResult: (didPop, result) async {
           if (!didPop && controller != null) await controller!.goBack();
         },
         child: Scaffold(
-          bottomNavigationBar: SafeArea(top: false, child: SizedBox(height: 40, child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text('Opdracht · $shellVersion', style: TextStyle(fontSize: 12)),
-              const UpdateAction(),
-            ]),
-          ))),
           body: SafeArea(child: Stack(children: [
           InAppWebView(
             webViewEnvironment: widget.environment,
@@ -117,7 +109,7 @@ class _OpdrachtShellState extends State<OpdrachtShell> {
             ])),
           )),
         ]))),
-      ),
+      )),
     );
   }
 }

@@ -17,6 +17,8 @@ let showCompletedQuests = false;
 let selectedTaskId = null;
 let editorSave = null;
 let editorTarget = null;
+let editorReturnFocus = null;
+let editorSubmitting = false;
 let renderedPageKey = null;
 let renderedTasks = new Map();
 let refreshSequence = 0;
@@ -148,13 +150,13 @@ function stats() {
 }
 function taskRow(task, compact = false) {
     const running = state.focus?.task_id === task.id;
-    return `<li class="task ${task.completed_at ? 'done' : ''}" data-task-id="${task.id}" ${!task.completed_at ? `tabindex="0" aria-label="${escapeHtml(task.title)} verschieben" aria-describedby="reorder-help" aria-keyshortcuts="ArrowUp ArrowDown"` : ''}><button class="task-check" role="checkbox" aria-checked="${Boolean(task.completed_at)}" aria-label="${escapeHtml(task.completed_at ? 'Wieder öffnen: ' : 'Erledigen: ')}${escapeHtml(task.title)}" data-action="toggle-task" data-id="${task.id}"><span class="task-check-box">${icon('check')}</span></button><div class="task-body"><button class="task-title" data-action="edit-task" data-id="${task.id}">${escapeHtml(task.title)}</button>${compact && task.notes ? `<div class="markdown task-preview">${markdown(task.notes)}</div>` : ''}<div class="task-meta">${tag(taskQuest(task))}${!compact && task.scheduled_for && dateValue(task.scheduled_for) !== state.today ? `<span>${dayLabel(task.scheduled_for)}</span>` : ''}${task.focus_seconds ? `<span>${duration(task.focus_seconds)}</span>` : ''}</div></div><div class="task-actions">${!compact && !task.completed_at ? `<button class="icon-button" data-action="focus-task" data-id="${task.id}" aria-label="Fokus für ${escapeHtml(task.title)}" title="Fokus">${icon(running ? 'timer' : 'play')}</button>` : ''}</div></li>`;
+    return `<li class="task ${task.completed_at ? 'done' : ''}" data-task-id="${task.id}" ${!task.completed_at ? `tabindex="0" aria-label="${escapeHtml(task.title)} verschieben" aria-describedby="reorder-help" aria-keyshortcuts="ArrowUp ArrowDown"` : ''}>${!compact ? `<button class="task-check" role="checkbox" aria-checked="${Boolean(task.completed_at)}" aria-label="${escapeHtml(task.completed_at ? 'Wieder öffnen: ' : 'Erledigen: ')}${escapeHtml(task.title)}" data-action="toggle-task" data-id="${task.id}"><span class="task-check-box">${icon('check')}</span></button>` : ''}<div class="task-body"><button class="task-title" data-action="edit-task" data-id="${task.id}">${escapeHtml(task.title)}</button>${compact && task.notes ? `<div class="markdown task-preview">${markdown(task.notes)}</div>` : ''}<div class="task-meta">${tag(taskQuest(task))}${!compact && task.scheduled_for && dateValue(task.scheduled_for) !== state.today ? `<span>${dayLabel(task.scheduled_for)}</span>` : ''}${task.focus_seconds ? `<span>${duration(task.focus_seconds)}</span>` : ''}</div></div><div class="task-actions">${!compact && !task.completed_at ? `<button class="icon-button" data-action="focus-task" data-id="${task.id}" aria-label="Fokus für ${escapeHtml(task.title)}" title="Fokus">${icon(running ? 'timer' : 'play')}</button>` : ''}</div></li>`;
 }
 function questOptions(selected) {
     return '<option value="">Ohne Quest</option>'+state.quests.filter(q=>!q.completed_at || q.id===selected).map(q=>`<option value="${q.id}" ${q.id===selected?'selected':''}>${escapeHtml(q.title)}</option>`).join('');
 }
 function taskSection(title, tasks, emptyText, addDate) {
-    return `<section class="section" ${addDate !== undefined ? `data-drop-date="${addDate || ''}"` : ''}><div class="section-heading"><h2>${title}<span class="count">${tasks.length}</span></h2></div>${tasks.length ? `<ul class="task-list active-task-list">${tasks.map(t => taskRow(t)).join('')}</ul>` : `<p class="empty-small">${emptyText}</p>`}${addDate !== undefined ? `<form class="quick-add" data-date="${addDate || ''}"><input name="title" aria-label="Neue Aufgabe für ${title}" placeholder="Neue Aufgabe" maxlength="200" required autocomplete="off"><details class="quick-add-details"><summary>Beschreibung &amp; Quest</summary><label>Beschreibung<textarea name="notes" maxlength="10000" placeholder="Markdown: **fett**, *kursiv*, - Liste, [Link](https://…)"></textarea></label><label>Quest<select name="quest_id">${questOptions(null)}</select></label></details><button class="button subtle" type="submit" aria-label="Aufgabe hinzufügen">Hinzufügen</button></form>` : ''}</section>`;
+    return `<section class="section" ${addDate !== undefined ? `data-drop-date="${addDate || ''}"` : ''}><div class="section-heading"><h2>${title}<span class="count">${tasks.length}</span></h2></div>${tasks.length ? `<ul class="task-list active-task-list">${tasks.map(t => taskRow(t)).join('')}</ul>` : `<p class="empty-small">${emptyText}</p>`}</section>`;
 }
 function completedSection(tasks, compact = false) {
     return tasks.length ? `<details class="section completed-tasks"><summary>Erledigt (${tasks.length})</summary><ul class="task-list">${tasks.map(task=>taskRow(task,compact)).join('')}</ul></details>` : '';
@@ -164,14 +166,14 @@ function todayScreen() {
     const overdue = state.tasks.filter(t => t.scheduled_for && dateValue(t.scheduled_for) < state.today && !t.completed_at);
     const inbox = state.tasks.filter(t => !t.scheduled_for && !t.completed_at);
     const completed = state.tasks.filter(t => t.completed_at);
-    return header('Heute', '<button class="button primary" data-action="new-task">+ Aufgabe hinzufügen</button>') + stats() + `<div class="today-tasks">${overdue.length ? taskSection('Überfällig',overdue,'') : ''}${taskSection('Für heute',today,'Keine Aufgaben für heute.',state.today)}${taskSection('Ohne Termin',inbox,'Keine Aufgaben ohne Termin.',null)}${completedSection(completed)}</div>`;
+    return header('Heute', '<button class="button primary" data-action="new-task">Aufgabe hinzufügen</button>') + stats() + `<div class="today-tasks">${overdue.length ? taskSection('Überfällig',overdue,'') : ''}${taskSection('Für heute',today,'Keine Aufgaben für heute.',state.today)}${taskSection('Ohne Termin',inbox,'Keine Aufgaben ohne Termin.',null)}${completedSection(completed)}</div>`;
 }
 function weekStart() {const date = localDate(state.today); date.setDate(date.getDate() - (date.getDay()+6)%7 + weekOffset*7); return date;}
 function weekScreen() {
     const start = weekStart();
     const end = new Date(start); end.setDate(end.getDate()+6);
     const days = Array.from({length:7},(_,i) => {const d=new Date(start); d.setDate(d.getDate()+i); return d;});
-    return header('Woche', `<div class="week-nav"><button class="icon-button" data-action="previous-week" aria-label="Vorherige Woche">${icon('chevron-left')}</button><span class="week-title">${dayLabel(dateKey(start))} – ${dayLabel(dateKey(end))}</span><button class="icon-button" data-action="next-week" aria-label="Nächste Woche">${icon('chevron-right')}</button><button class="button small subtle" data-action="current-week">Heute</button></div>`) + `<div class="week-grid" role="region" aria-label="Wochenplanung, bei Bedarf seitlich scrollen" tabindex="0">${days.map(d => {const key=dateKey(d);const dayTasks=state.tasks.filter(t=>dateValue(t.scheduled_for)===key);const tasks=dayTasks.filter(t=>!t.completed_at);const completed=dayTasks.filter(t=>t.completed_at);return `<section class="day ${key===state.today?'current':''}" data-drop-date="${key}"><div class="day-heading"><span>${d.toLocaleDateString('de-DE',{weekday:'short'})}</span><strong>${d.getDate()}</strong></div>${tasks.length?`<ul class="task-list active-task-list">${tasks.map(t=>taskRow(t,true)).join('')}</ul>`:'<p class="empty-small">Keine Aufgaben.</p>'}<button class="day-add" data-action="new-task" data-date="${key}">+ Aufgabe</button>${completedSection(completed,true)}</section>`;}).join('')}</div><p class="review-note">Aufgabenkarte ziehen, um zu sortieren oder auf einen anderen Tag zu verschieben. Auf Touchscreens kurz halten, dann ziehen. Zum Bearbeiten den Titel antippen.</p>`;
+    return header('Woche', `<div class="week-nav"><button class="icon-button" data-action="previous-week" aria-label="Vorherige Woche">${icon('chevron-left')}</button><span class="week-title">${dayLabel(dateKey(start))} – ${dayLabel(dateKey(end))}</span><button class="icon-button" data-action="next-week" aria-label="Nächste Woche">${icon('chevron-right')}</button><button class="button small subtle" data-action="current-week">Heute</button></div>`) + `<div class="week-grid" role="region" aria-label="Wochenplanung, bei Bedarf seitlich scrollen" tabindex="0">${days.map(d => {const key=dateKey(d);const dayTasks=state.tasks.filter(t=>dateValue(t.scheduled_for)===key);const tasks=dayTasks.filter(t=>!t.completed_at);const completed=dayTasks.filter(t=>t.completed_at);return `<section class="day ${key===state.today?'current':''}" data-drop-date="${key}"><div class="day-heading"><span>${d.toLocaleDateString('de-DE',{weekday:'short'})}</span><strong>${d.getDate()}</strong></div>${tasks.length?`<ul class="task-list active-task-list">${tasks.map(t=>taskRow(t,true)).join('')}</ul>`:'<p class="empty-small">Keine Aufgaben.</p>'}<button class="day-add" data-action="new-task" data-date="${key}">+ Aufgabe</button>${completedSection(completed,true)}</section>`;}).join('')}</div>`;
 }
 function questsScreen() {
     const quests=state.quests.filter(q=>Boolean(q.completed_at)===showCompletedQuests);
@@ -190,10 +192,10 @@ function focusPanel() {
     const activeTask=state.tasks.find(t=>t.id===state.focus?.task_id);
     const selected=focusTask();
     const available=state.tasks.filter(t=>!t.completed_at);
-    return `<section class="focus-view"><p class="focus-eyebrow">EINE AUFGABE. DEIN FOKUS.</p>${selected?`${tag(taskQuest(selected))}<h2>${escapeHtml(selected.title)}</h2>${selected.notes?`<div class="markdown focus-notes" tabindex="0" aria-label="Aufgabenbeschreibung">${markdown(selected.notes)}</div>`:''}`:`<h2>${available.length?'Worauf möchtest du dich konzentrieren?':'Platz für deinen nächsten Schritt.'}</h2>`}${!state.focus && available.length?`<label class="focus-choose">Aufgabe<select id="focus-select"><option value="">Aufgabe auswählen …</option>${available.map(t=>`<option value="${t.id}" ${t.id===selected?.id?'selected':''}>${escapeHtml(t.title)}</option>`).join('')}</select></label>`:''}<div data-focus-timer class="timer" role="timer" aria-live="off" aria-label="Verstrichene Fokuszeit">00:00</div><p class="timer-label" role="status">${state.focus?'FOKUS LÄUFT':'BEREIT FÜR FOKUS'}</p><div class="focus-controls">${state.focus?`<button class="button primary" data-action="stop-focus">${icon('square')} Timer stoppen &amp; Zeit speichern</button>${activeTask?`<button class="button subtle" data-action="finish-focus" data-id="${activeTask.id}">${icon('check')} Aufgabe abschließen</button>`:''}`:available.length?`<button class="button primary" data-action="start-focus" ${selected?'':'disabled'}>${icon('play')} Fokus starten</button>`:'<button class="button primary" data-action="new-task">+ Aufgabe erstellen</button>'}</div><p class="intro">${state.focus?'Der Timer läuft serverseitig weiter – auch beim Verlassen dieser Ansicht oder Schließen der App.':'Beim Stoppen wird die Zeit auf deinem Server gespeichert.'}</p></section>`;
+    return `<section class="focus-view">${selected?`${tag(taskQuest(selected))}<h2>${escapeHtml(selected.title)}</h2>${selected.notes?`<div class="markdown focus-notes" tabindex="0" aria-label="Aufgabenbeschreibung">${markdown(selected.notes)}</div>`:''}`:`<h2>${available.length?'Worauf möchtest du dich konzentrieren?':'Platz für deinen nächsten Schritt.'}</h2>`}${!state.focus && available.length?`<label class="focus-choose">Aufgabe<select id="focus-select"><option value="">Aufgabe auswählen …</option>${available.map(t=>`<option value="${t.id}" ${t.id===selected?.id?'selected':''}>${escapeHtml(t.title)}</option>`).join('')}</select></label>`:''}<div data-focus-timer class="timer" role="timer" aria-live="off" aria-label="Verstrichene Fokuszeit">00:00</div><p class="timer-label" role="status">${state.focus?'FOKUS LÄUFT':'BEREIT FÜR FOKUS'}</p><div class="focus-controls">${state.focus?`<button class="button primary" data-action="stop-focus">${icon('square')} Timer stoppen &amp; Zeit speichern</button>${activeTask?`<button class="button subtle" data-action="finish-focus" data-id="${activeTask.id}">${icon('check')} Aufgabe abschließen</button>`:''}`:available.length?`<button class="button primary" data-action="start-focus" ${selected?'':'disabled'}>${icon('play')} Fokus starten</button>`:'<button class="button primary" data-action="new-task">+ Aufgabe erstellen</button>'}</div></section>`;
 }
 function focusScreen() {
-    return `<section id="focus-workspace" class="focus-workspace"><header class="focus-toolbar"><h1>Fokus</h1><button id="focus-fullscreen" class="button subtle" data-action="toggle-immersive" aria-controls="focus-workspace" aria-pressed="false">${icon('maximize')} Vollbild</button></header><p id="focus-exit-hint" class="focus-exit-hint" hidden>Esc oder „Vollbild verlassen“ blendet die Navigation wieder ein. Der Timer läuft unverändert weiter.</p>${focusPanel()}</section>`;
+    return `<section id="focus-workspace" class="focus-workspace"><header class="focus-toolbar"><h1>Fokus</h1><button id="focus-fullscreen" class="button subtle" data-action="toggle-immersive" aria-controls="focus-workspace" aria-pressed="false">${icon('maximize')} Vollbild</button></header>${focusPanel()}</section>`;
 }
 function syncImmersive() {
     document.body.classList.toggle('immersive-open', immersive);
@@ -202,8 +204,6 @@ function syncImmersive() {
         button.setAttribute('aria-pressed',String(immersive));
         button.innerHTML=icon(immersive?'x':'maximize')+(immersive?' Vollbild verlassen':' Vollbild');
     }
-    const hint=document.querySelector('#focus-exit-hint');
-    if(hint) hint.hidden=!immersive;
 }
 function setImmersive(enabled) {
     immersive=Boolean(enabled && page==='focus');
@@ -264,7 +264,7 @@ function reviewScreen() {
     const days=sessionDays(reviewData.sessions,start);
     const questTotals=new Map();reviewData.sessions.forEach(session=>{if(session.quest_id)questTotals.set(session.quest_id,(questTotals.get(session.quest_id)||0)+session.seconds);});
     const notes=reviewDrafts.has(start)?reviewDrafts.get(start):reviewData.review;
-    return header('Rückblick',navigation)+`<div class="stats-strip"><div class="stat"><span class="stat-label">Gesamte Fokuszeit</span><span class="stat-value">${duration(reviewData.seconds)}</span></div><div class="stat"><span class="stat-label">Davon Quest-Zeit</span><span class="stat-value">${duration(reviewData.quest_seconds)}</span></div></div><section class="review-panel"><h2>Dein Arbeitslogbuch</h2><p class="review-note">Tatsächlich gespeicherte Fokuszeiten · Anzeige in deiner Gerätezeitzone. Laufende Timer erscheinen nach dem Stoppen.</p>${logCalendar(days)}</section><section class="review-panel"><h2>Wochenziele</h2>${state.quests.filter(q=>q.weekly_minutes&&!q.completed_at).map(q=>`<div class="review-row">${tag(q)}<strong>${duration(questTotals.get(q.id)||0)} / ${duration(q.weekly_minutes*60)}</strong></div><progress class="goal-progress" max="${q.weekly_minutes*60}" value="${Math.min(q.weekly_minutes*60,questTotals.get(q.id)||0)}" aria-label="Wochenzeit ${escapeHtml(q.title)}"></progress>`).join('')||'<p class="empty-small">Lege in deinen Quests optionale Wochenzeitziele fest.</p>'}<p class="review-note">Vergleich mit den aktuell eingestellten Zeitzielen.</p></section><section class="review-panel"><h2>Dein Wochenreview</h2><p>Was lief gut? Was hat dich aufgehalten? Haben deine wichtigen Ziele Zeit bekommen? Was änderst du nächste Woche?</p><form id="weekly-review-form" data-week="${start}"><label>Notizen zur Woche<textarea name="notes" maxlength="20000" rows="8" placeholder="Dein persönlicher Rückblick …">${escapeHtml(notes)}</textarea></label><button class="button primary" type="submit">Review speichern</button><p id="review-save-status" role="status"></p></form></section>`;
+    return header('Rückblick',navigation)+`<div class="stats-strip"><div class="stat"><span class="stat-label">Gesamte Fokuszeit</span><span class="stat-value">${duration(reviewData.seconds)}</span></div><div class="stat"><span class="stat-label">Davon Quest-Zeit</span><span class="stat-value">${duration(reviewData.quest_seconds)}</span></div></div><section class="review-panel"><h2>Arbeitslogbuch</h2>${logCalendar(days)}</section><section class="review-panel"><h2>Aktuelle Wochenziele</h2>${state.quests.filter(q=>q.weekly_minutes&&!q.completed_at).map(q=>`<div class="review-row">${tag(q)}<strong>${duration(questTotals.get(q.id)||0)} / ${duration(q.weekly_minutes*60)}</strong></div><progress class="goal-progress" max="${q.weekly_minutes*60}" value="${Math.min(q.weekly_minutes*60,questTotals.get(q.id)||0)}" aria-label="Wochenzeit ${escapeHtml(q.title)}"></progress>`).join('')||'<p class="empty-small">Keine Wochenziele.</p>'}</section><section class="review-panel"><h2>Wochenreview</h2><form id="weekly-review-form" data-week="${start}"><label>Notizen zur Woche<textarea name="notes" maxlength="20000" rows="8" placeholder="Was lief gut? Was möchtest du nächste Woche ändern?">${escapeHtml(notes)}</textarea></label><button class="button primary" type="submit">Review speichern</button><p id="review-save-status" role="status"></p></form></section>`;
 }
 function animateChange(element, frames, options = {}) {
     if(!element || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || !element.animate) return;
@@ -320,11 +320,15 @@ function openEditor(title, fields, onSave) {
     document.querySelector('#editor-title').textContent=title;
     document.querySelector('#editor-fields').innerHTML=fields;
     document.querySelector('#editor-error').hidden=true;
+    editorReturnFocus=document.activeElement;
+    editorForm.querySelector('[type="submit"]').textContent='Speichern';
     editorSave=onSave;editor.showModal();
+    document.querySelector('#editor-fields').querySelector('[autofocus]')?.focus();
 }
 function taskEditor(task, date=state.today) {
     editorTarget=task?{type:'task',id:task.id}:null;
-    openEditor(task?'Aufgabe bearbeiten':'Neue Aufgabe',`<label>Aufgabe<input name="title" value="${escapeHtml(task?.title)}" maxlength="200" required autofocus></label><div class="form-row"><label>Tag<input type="date" name="scheduled_for" value="${escapeHtml(dateValue(task?task.scheduled_for:date))}"></label><label>Quest<select name="quest_id"><option value="">Ohne Quest</option>${state.quests.filter(q=>!q.completed_at || q.id===task?.quest_id).map(q=>`<option value="${q.id}" ${q.id===task?.quest_id?'selected':''}>${escapeHtml(q.title)}</option>`).join('')}</select></label></div><label>Beschreibung · Markdown möglich<textarea name="notes" maxlength="10000">${escapeHtml(task?.notes)}</textarea></label>${task?`<label class="check-label"><input type="checkbox" name="completed" ${task.completed_at?'checked':''}> Aufgabe abgeschlossen</label><button type="button" class="text-button" data-action="delete-task" data-id="${task.id}">Aufgabe löschen</button>`:''}`,async data=>{if(!task && !state.focus) selectedTaskId=null;await mutate(task?`/api/tasks/${task.id}`:'/api/tasks',task?'PATCH':'POST',{title:data.get('title'),notes:data.get('notes'),scheduled_for:data.get('scheduled_for')||null,quest_id:data.get('quest_id')?Number(data.get('quest_id')):null,...(task?{completed:data.has('completed')}:{})});});
+    openEditor(task?'Aufgabe bearbeiten':'Aufgabe hinzufügen',`<label>Aufgabe<input name="title" value="${escapeHtml(task?.title)}" maxlength="200" required autofocus autocomplete="off" enterkeyhint="done"></label><label>Beschreibung<textarea name="notes" maxlength="10000" rows="4">${escapeHtml(task?.notes)}</textarea></label><div class="form-row"><label>Quest<select name="quest_id">${questOptions(task?.quest_id)}</select></label><label>Tag<input type="date" name="scheduled_for" value="${escapeHtml(dateValue(task?task.scheduled_for:date))}"></label></div>${task?`<label class="check-label"><input type="checkbox" name="completed" ${task.completed_at?'checked':''}> Aufgabe abgeschlossen</label><button type="button" class="text-button" data-action="delete-task" data-id="${task.id}">Aufgabe löschen</button>`:''}`,async data=>{if(!task && !state.focus) selectedTaskId=null;await mutate(task?`/api/tasks/${task.id}`:'/api/tasks',task?'PATCH':'POST',{title:data.get('title').trim(),notes:data.get('notes'),scheduled_for:data.get('scheduled_for')||null,quest_id:data.get('quest_id')?Number(data.get('quest_id')):null,...(task?{completed:data.has('completed')}:{})});});
+    if(!task) editorForm.querySelector('[type="submit"]').textContent='Aufgabe hinzufügen';
 }
 function questEditor(quest) {
     editorTarget=quest?{type:'quest',id:quest.id}:null;
@@ -340,7 +344,7 @@ document.addEventListener('click',async event=>{
     if(Date.now()<suppressTaskClickUntil && event.detail!==0) {
         event.preventDefault();event.stopImmediatePropagation();return;
     }
-    if(event.target.closest('[data-close]')){editor.close();return;}
+    if(event.target.closest('[data-close]')){if(!editorSubmitting)editor.close();return;}
     const button=event.target.closest('[data-action]');if(!button) return;
     const action=button.dataset.action,id=Number(button.dataset.id);
     const task=state?.tasks.find(t=>t.id===id),quest=state?.quests.find(q=>q.id===id);
@@ -564,19 +568,31 @@ document.addEventListener('submit',async event=>{
     catch(error) {showError(error.message);}
     finally {button.disabled=false;}
 });
-document.addEventListener('submit',async event=>{
-    const form=event.target.closest('.quick-add');if(!form)return;
-    event.preventDefault();const input=form.elements.title,title=input.value.trim();if(!title)return;
-    const submit=form.querySelector('button');submit.disabled=true;
-    try {if(!state.focus) selectedTaskId=null;await mutate('/api/tasks','POST',{title,notes:form.elements.notes?.value||null,quest_id:form.elements.quest_id?.value?Number(form.elements.quest_id.value):null,scheduled_for:form.dataset.date||null});}
-    catch(error){showError(error.message);}finally{submit.disabled=false;}
+editor.addEventListener('close',()=>{
+    editorTarget=null;editorSave=null;
+    if(editorReturnFocus?.isConnected) editorReturnFocus.focus();
+    else {
+        const trigger=editorReturnFocus?.dataset;
+        const replacement=trigger?.action ? Array.from(screen.querySelectorAll('[data-action]')).find(button=>button.dataset.action===trigger.action && button.dataset.id===trigger.id && button.dataset.date===trigger.date) : null;
+        (replacement || document.querySelector('#content'))?.focus();
+    }
+});
+editor.addEventListener('cancel',event=>{if(editorSubmitting)event.preventDefault();});
+editorForm.addEventListener('keydown',event=>{
+    if(event.key==='Enter' && (event.ctrlKey || event.metaKey) && !event.isComposing) {
+        event.preventDefault();if(!editorSubmitting)editorForm.requestSubmit();
+    }
 });
 editorForm.addEventListener('submit',async event=>{
-    event.preventDefault();if(!editorSave)return;
-    const submit=editorForm.querySelector('[type="submit"]');submit.disabled=true;
+    event.preventDefault();if(!editorSave || editorSubmitting)return;
+    const title=editorForm.querySelector('[name="title"]');
+    if(title && !title.value.trim()){title.value='';title.reportValidity();return;}
+    editorSubmitting=true;editorForm.setAttribute('aria-busy','true');
+    const buttons=Array.from(editorForm.querySelectorAll('button'));
+    buttons.forEach(button=>button.disabled=true);
     try {await editorSave(new FormData(editorForm));editor.close();}
-    catch(error){const output=document.querySelector('#editor-error');output.textContent=error.message;output.hidden=false;}
-    finally{submit.disabled=false;}
+    catch(error){const output=document.querySelector('#editor-error');output.textContent=error.message;output.hidden=false;output.focus();}
+    finally{editorSubmitting=false;editorForm.removeAttribute('aria-busy');buttons.forEach(button=>button.disabled=false);}
 });
 document.addEventListener('change',event=>{if(event.target.id==='focus-select'){selectedTaskId=Number(event.target.value)||null;render();}});
 function setConnection(label, unavailable) { document.querySelector('.connection').classList.toggle('offline', unavailable); document.querySelector('#connection-text').textContent=label; }
@@ -596,7 +612,7 @@ function pwaError(error) {
     output.hidden = false;
 }
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=12').then(registration => {
+    navigator.serviceWorker.register('/sw.js?v=13').then(registration => {
         const watch = () => {
             const worker = registration.installing;
             worker?.addEventListener('statechange', () => {
