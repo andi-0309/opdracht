@@ -36,6 +36,13 @@ jobs:
       - run: python apps/shell/bootstrap.py
       - run: flutter pub get
         working-directory: apps/shell/build/native
+      - name: Preserve resolved Flutter dependency lock
+        if: matrix.platform == 'android'
+        uses: actions/upload-artifact@v4
+        with:
+          name: shell-dependency-lock
+          path: apps/shell/build/native/pubspec.lock
+          if-no-files-found: error
       - run: flutter analyze
         working-directory: apps/shell/build/native
       - run: flutter test
