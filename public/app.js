@@ -201,11 +201,16 @@ function syncImmersive() {
     // Physical screen size excludes tablets and resized desktop windows.
     const phone = window.matchMedia?.('(pointer: coarse)').matches
         && Math.min(window.screen?.width || 9999, window.screen?.height || 9999) <= 600;
-    immersive = Boolean(page === 'focus' && phone && window.matchMedia?.('(orientation: landscape)').matches);
+    const orientation = window.screen?.orientation?.type;
+    const landscape = orientation ? orientation.startsWith('landscape')
+        : typeof window.orientation === 'number' ? Math.abs(window.orientation) === 90
+        : window.matchMedia?.('(orientation: landscape)').matches;
+    immersive = Boolean(page === 'focus' && phone && landscape);
     document.body.classList.toggle('immersive-open', immersive);
 }
 window.addEventListener('resize', syncImmersive);
 window.addEventListener('orientationchange', syncImmersive);
+window.screen?.orientation?.addEventListener?.('change', syncImmersive);
 window.matchMedia?.('(orientation: landscape)').addEventListener?.('change', syncImmersive);
 function reviewStart() {const date=localDate(state.today);date.setDate(date.getDate()-(date.getDay()+6)%7+reviewOffset*7);return dateKey(date);}
 async function loadReview() {

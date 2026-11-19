@@ -60,6 +60,17 @@ test('automatic focus fullscreen only activates on landscape phones and preserve
     assert.equal(ui.node('body').classList.values.has('immersive-open'),false);
     assert.equal(ui.run('state.focus.id'),9);assert.equal(ui.requests(),before);
 });
+test('a portrait phone keyboard never triggers landscape focus fullscreen', () => {
+    const ui=app();
+    ui.run('window.screen={width:390,height:844,orientation:{type:"portrait-primary"}};window.matchMedia=()=>({matches:true});syncImmersive()');
+    assert.equal(ui.node('body').classList.values.has('immersive-open'),false);
+    ui.run('window.screen.orientation.type="landscape-primary";syncImmersive()');
+    assert.equal(ui.node('body').classList.values.has('immersive-open'),true);
+    ui.run('delete window.screen.orientation;window.orientation=0;syncImmersive()');
+    assert.equal(ui.node('body').classList.values.has('immersive-open'),false);
+    ui.run('window.orientation=-90;syncImmersive()');
+    assert.equal(ui.node('body').classList.values.has('immersive-open'),true);
+});
 test('tablets and desktop windows never automatically enter focus fullscreen', () => {
     const ui=app();
     ui.run('window.screen={width:820,height:1180};window.matchMedia=()=>({matches:true});syncImmersive()');
