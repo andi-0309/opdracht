@@ -14,6 +14,8 @@ for name in ['lib', 'test']:
     shutil.rmtree(project / name, ignore_errors=True)
     shutil.copytree(source / name, project / name)
 shutil.copy2(source / 'pubspec.yaml', project / 'pubspec.yaml')
+(project / 'assets').mkdir(exist_ok=True)
+shutil.copy2(source / 'native-icons/app_icon_32.png', project / 'assets/app_icon_32.png')
 if (source / 'pubspec.lock').exists():
     shutil.copy2(source / 'pubspec.lock', project / 'pubspec.lock')
 (project / 'analysis_options.yaml').unlink(missing_ok=True)
@@ -70,3 +72,23 @@ text = text.replace('android {', '''android {
 ''', 1).replace('signingConfig = signingConfigs.getByName("debug")', 'signingConfig = signingConfigs.getByName("personal")')
 target.write_text(text)
 print(f'Native shell generated: {project}')
+
+# Draw branded desktop chrome while retaining native window management.
+shutil.copy2(source / 'windows/window_chrome.h', project / 'windows/runner/window_chrome.h')
+header = project / 'windows/runner/flutter_window.h'
+text = header.read_text().replace('#include <memory>', '#include <memory>\n#include <flutter/method_channel.h>')
+text = text.replace('  flutter::DartProject project_;', '  flutter::DartProject project_;\n  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> window_channel_;')
+header.write_text(text)
+target = project / 'windows/runner/flutter_window.cpp'
+text = target.read_text().replace('#include "flutter_window.h"', '#include "flutter_window.h"\n#include "window_chrome.h"')
+anchor = '  RegisterPlugins(flutter_controller_->engine());'
+assert anchor in text, 'Unexpected Windows plugin registration template'
+text = text.replace(anchor, anchor + '\n  window_channel_ = ConfigureOpdrachtWindow(flutter_controller_->engine()->messenger(), GetHandle());')
+text = text.replace('  // Give Flutter, including plugins,', '  if (const auto chrome = OpdrachtChromeMessage(hwnd, message, wparam, lparam)) return *chrome;\n  // Give Flutter, including plugins,')
+text = text.replace('  if (flutter_controller_) {\n    flutter_controller_ = nullptr;', '  window_channel_.reset();\n  if (flutter_controller_) {\n    flutter_controller_ = nullptr;')
+target.write_text(text)
+shutil.copy2(source / 'macos/MainFlutterWindow.swift', project / 'macos/Runner/MainFlutterWindow.swift')
+
+target = project / 'windows/runner/main.cpp'
+text = target.read_text().replace('window.Create(L"opdracht"', 'window.Create(L"Opdracht"')
+target.write_text(text)

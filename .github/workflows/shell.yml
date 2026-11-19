@@ -101,12 +101,10 @@ jobs:
         run: |
           mkdir -p dist
           cp apps/shell/build/native/build/app/outputs/flutter-apk/app-release.apk dist/Opdracht-Android.apk
-      - name: Package Windows (including runtime libraries)
+      - name: Package and verify Windows installer and portable app
         if: matrix.platform == 'windows'
         shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force dist
-          Compress-Archive -Path apps/shell/build/native/build/windows/x64/runner/Release/* -DestinationPath dist/Opdracht-Windows-x64.zip
+        run: ./apps/shell/windows/package.ps1
       - name: Package macOS
         if: matrix.platform == 'macos'
         shell: bash

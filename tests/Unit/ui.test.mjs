@@ -90,7 +90,7 @@ test('theme follows system initially and on changes, ignoring stored preferences
     const code=fs.readFileSync(new URL('../../public/theme.js',import.meta.url),'utf8');
     const listeners={};const media={matches:true,addEventListener(name,callback){listeners[name]=callback;}};
     const root={dataset:{},style:{}};let themeColor;
-    vm.runInNewContext(code,{window:{matchMedia(){return media;}},document:{documentElement:root,addEventListener(){},querySelector(){return {setAttribute(name,value){themeColor=value;}};}},
+    vm.runInNewContext(code,{window:{matchMedia(){return media;},addEventListener(){}},document:{documentElement:root,addEventListener(){},querySelector(){return {setAttribute(name,value){themeColor=value;}};}},
         get localStorage(){throw new Error('System theme must not read stored overrides');}});
     assert.equal(root.dataset.theme,'dark');assert.equal(themeColor,'#171d19');
     media.matches=false;listeners.change();assert.equal(root.dataset.theme,'light');assert.equal(root.style.colorScheme,'light');

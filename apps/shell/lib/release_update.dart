@@ -30,7 +30,7 @@ bool isNewerVersion(String candidate, String installed) {
 
 String? assetForPlatform(String platform) => switch (platform) {
   'android' => 'Opdracht-Android.apk',
-  'windows' => 'Opdracht-Windows-x64.zip',
+  'windows' => 'Opdracht-Windows-x64-Setup.exe',
   'macos' => 'Opdracht-macOS-arm64.zip',
   _ => null,
 };

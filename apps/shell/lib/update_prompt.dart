@@ -46,7 +46,9 @@ class _UpdatePromptState extends State<UpdatePrompt> {
         const SizedBox(height: 12),
         Text(Platform.isAndroid
             ? 'APK herunterladen und öffnen. Android fragt vor der Installation. Die bestehende App wird aktualisiert, nicht deinstalliert.'
-            : 'ZIP herunterladen und entpacken. Opdracht schließen und die bisherige Anwendung durch die neue ersetzen. Das WebView-Profil bleibt erhalten.'),
+            : Platform.isWindows
+                ? 'Installer herunterladen, Opdracht schließen und das Setup starten. Die bestehende Installation wird aktualisiert; die Anmeldung bleibt erhalten.'
+                : 'ZIP herunterladen und entpacken. Opdracht schließen und die bisherige Anwendung durch die neue ersetzen. Das WebView-Profil bleibt erhalten.'),
         if (Platform.isAndroid) ...[
           const SizedBox(height: 12),
           const Text('Alternativ kann Obtainium die APK-Updates von GitHub verwalten.'),

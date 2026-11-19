@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:collection';
 import 'update_prompt.dart';
+import 'desktop_frame.dart';
+import 'shell_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -43,6 +45,14 @@ class _OpdrachtShellState extends State<OpdrachtShell> {
   bool loadFailed = false;
   String viewportScript = '';
   String appliedViewportScript = '';
+  bool? appliedDark;
+
+  Future<void> applyAppearance(bool dark) async {
+    if (Platform.isWindows || Platform.isMacOS) {
+      await desktopWindow.invokeMethod<void>('theme', dark);
+    }
+    await controller?.evaluateJavascript(source: shellThemeScript(dark));
+  }
 
   Future<void> applyViewportInsets() async {
     if (controller == null) return;
@@ -65,6 +75,11 @@ class _OpdrachtShellState extends State<OpdrachtShell> {
       WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) applyViewportInsets(); });
     }
     final dark = MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+    final desktop = Platform.isWindows || Platform.isMacOS;
+    if (appliedDark != dark) {
+      appliedDark = dark;
+      WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) applyAppearance(dark); });
+    }
     final background = dark ? const Color(0xff171d19) : const Color(0xfff7f8f2);
     final systemStyle = SystemUiOverlayStyle(
       statusBarColor: background,
@@ -79,22 +94,24 @@ class _OpdrachtShellState extends State<OpdrachtShell> {
       child: MaterialApp(
       title: 'Opdracht',
       themeMode: ThemeMode.system,
-      theme: ThemeData(brightness: Brightness.light, scaffoldBackgroundColor: const Color(0xfff7f8f2)),
-      darkTheme: ThemeData(brightness: Brightness.dark, scaffoldBackgroundColor: const Color(0xff171d19)),
+      theme: shellTheme(Brightness.light),
+      darkTheme: shellTheme(Brightness.dark),
+      builder: (context, child) => desktop ? DesktopFrame(macOS: Platform.isMacOS, child: child!) : child!,
       home: UpdatePrompt(child: PopScope(
         canPop: !canGoBack,
         onPopInvokedWithResult: (didPop, result) async {
           if (!didPop && controller != null) await controller!.goBack();
         },
         child: Scaffold(
-          body: SafeArea(left: false, right: false, child: Stack(children: [
+          body: SafeArea(left: false, right: false, top: !desktop, bottom: !desktop, child: Stack(children: [
           InAppWebView(
             webViewEnvironment: widget.environment,
             initialUserScripts: UnmodifiableListView([
-              UserScript(source: viewportScript, injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START),
+              UserScript(source: viewportScript + shellThemeScript(dark), injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START),
             ]),
             initialUrlRequest: URLRequest(url: WebUri(homeUrl)),
             initialSettings: InAppWebViewSettings(
+              transparentBackground: true,
               useShouldOverrideUrlLoading: true,
               supportMultipleWindows: true,
               javaScriptCanOpenWindowsAutomatically: false,
@@ -124,6 +141,7 @@ class _OpdrachtShellState extends State<OpdrachtShell> {
             onLoadStart: (view, url) { if (mounted) setState(() => loadFailed = false); },
             onLoadStop: (view, url) async {
               await applyViewportInsets();
+              await applyAppearance(MediaQuery.platformBrightnessOf(context) == Brightness.dark);
               final back = await view.canGoBack();
               if (mounted) setState(() => canGoBack = back);
             },
