@@ -20,11 +20,10 @@ Future<void> main() async {
       runApp(MaterialApp(
         theme: shellTheme(Brightness.light),
         darkTheme: shellTheme(Brightness.dark),
-        builder: (context, child) => DesktopFrame(child: child!),
-        home: const Scaffold(body: Center(child: Text(
+        home: const Scaffold(body: DesktopFrame(child: Center(child: Text(
         'Bitte die Microsoft Edge WebView2 Runtime installieren und Opdracht erneut öffnen.',
         textAlign: TextAlign.center,
-      )))));
+      ))))));
       return;
     }
     final base = Platform.environment['LOCALAPPDATA'];
@@ -100,14 +99,14 @@ class _OpdrachtShellState extends State<OpdrachtShell> {
       themeMode: ThemeMode.system,
       theme: shellTheme(Brightness.light),
       darkTheme: shellTheme(Brightness.dark),
-      builder: (context, child) => desktop ? DesktopFrame(macOS: Platform.isMacOS, child: child!) : child!,
       home: UpdatePrompt(child: PopScope(
         canPop: !canGoBack,
         onPopInvokedWithResult: (didPop, result) async {
           if (!didPop && controller != null) await controller!.goBack();
         },
         child: Scaffold(
-          body: SafeArea(left: false, right: false, top: !desktop, bottom: !desktop, child: Stack(children: [
+          body: Builder(builder: (context) {
+          final content = SafeArea(left: false, right: false, top: !desktop, bottom: !desktop, child: Stack(children: [
           InAppWebView(
             webViewEnvironment: widget.environment,
             initialUserScripts: UnmodifiableListView([
@@ -165,7 +164,10 @@ class _OpdrachtShellState extends State<OpdrachtShell> {
               TextButton(onPressed: () { setState(() => loadFailed = false); controller?.loadUrl(urlRequest: URLRequest(url: WebUri(homeUrl))); }, child: const Text('Erneut versuchen')),
             ])),
           )),
-        ]))),
+        ]));
+          return desktop ? DesktopFrame(macOS: Platform.isMacOS, child: content) : content;
+          }),
+        ),
       )),
     ));
   }
