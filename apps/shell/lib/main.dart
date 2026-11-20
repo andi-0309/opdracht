@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'update_prompt.dart';
 import 'desktop_frame.dart';
 import 'shell_theme.dart';
+import 'shell_interactions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -49,6 +50,7 @@ class _OpdrachtShellState extends State<OpdrachtShell> {
   String viewportScript = '';
   String appliedViewportScript = '';
   bool? appliedDark;
+  bool datePickerOpen = false;
 
   Future<void> applyAppearance(bool dark) async {
     if (Platform.isWindows || Platform.isMacOS) {
@@ -110,19 +112,40 @@ class _OpdrachtShellState extends State<OpdrachtShell> {
           InAppWebView(
             webViewEnvironment: widget.environment,
             initialUserScripts: UnmodifiableListView([
-              UserScript(source: viewportScript + shellThemeScript(dark), injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START),
+              UserScript(source: viewportScript + shellThemeScript(dark) + shellInteractionScript + (Platform.isAndroid ? shellAndroidDateScript : ''), injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START),
             ]),
             initialUrlRequest: URLRequest(url: WebUri(homeUrl)),
             initialSettings: InAppWebViewSettings(
               transparentBackground: true,
               useShouldOverrideUrlLoading: true,
               supportMultipleWindows: true,
+              supportZoom: false,
+              builtInZoomControls: false,
+              displayZoomControls: false,
+              minimumZoomScale: 1.0,
+              maximumZoomScale: 1.0,
               javaScriptCanOpenWindowsAutomatically: false,
               isInspectable: false,
               allowFileAccess: false,
               allowContentAccess: false,
             ),
-            onWebViewCreated: (value) => controller = value,
+            onWebViewCreated: (value) {
+              controller = value;
+              if (Platform.isAndroid) {
+                value.addJavaScriptHandler(handlerName: 'opdrachtDatePicker', callback: (args) async {
+                  final url = await value.getUrl();
+                  if (!mounted || datePickerOpen || url == null ||
+                      !isInternal(Uri.parse(url.toString())) || url.host != 'opdracht.zerver.eu' ||
+                      args.length != 1 || args.first is! Map) return null;
+                  datePickerOpen = true;
+                  try {
+                    return await pickShellDate(context, Map<String, dynamic>.from(args.first as Map));
+                  } finally {
+                    datePickerOpen = false;
+                  }
+                });
+              }
+            },
             shouldOverrideUrlLoading: (view, action) async {
               final url = action.request.url;
               if (url == null) return NavigationActionPolicy.CANCEL;
