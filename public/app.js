@@ -284,7 +284,7 @@ function render() {
     document.querySelector('#date-label').textContent=localDate(state.today).toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
     const focused=document.activeElement;
     const previousContent=screen.querySelector('.focus-task');
-    const contentPosition=previousContent ? {key:previousContent.dataset.contentKey,top:previousContent.scrollTop,focused:focused===previousContent} : null;
+    const contentPosition=previousContent ? {key:previousContent.dataset.contentKey,top:screen.querySelector('.focus-content')?.scrollTop || 0,focused:focused===previousContent} : null;
     const focusedAction=focused?.dataset.action;
     const previousQueue=screen.querySelector('.focus-queue .task-list');
     const queueScroll=previousQueue?.scrollLeft || 0;
@@ -320,7 +320,8 @@ function render() {
     if(!pageChanged && currentQueue) currentQueue.scrollLeft=queueScroll;
     const currentContent=screen.querySelector('.focus-task');
     if(!pageChanged && currentContent && contentPosition?.key===currentContent.dataset.contentKey) {
-        currentContent.scrollTop=contentPosition.top;
+        const currentScroller=screen.querySelector('.focus-content');
+        if(currentScroller) currentScroller.scrollTop=contentPosition.top;
         if(contentPosition.focused) currentContent.focus({preventScroll:true});
     }
     updateTimer();
@@ -643,7 +644,7 @@ function pwaError(error) {
     output.hidden = false;
 }
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=21').then(registration => {
+    navigator.serviceWorker.register('/sw.js?v=22').then(registration => {
         const watch = () => {
             const worker = registration.installing;
             worker?.addEventListener('statechange', () => {

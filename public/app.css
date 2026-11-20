@@ -349,7 +349,7 @@ label textarea { min-height: 110px; resize: vertical; }
 .day .task-actions { flex-basis: 100%; justify-content: flex-end; }
 
 
-/* Viewport fitting is scoped to mobile focus, never the task lists or login. */
+/* Focus viewport rules below do not constrain planning lists or login. */
 
 
 
@@ -415,7 +415,7 @@ progress { accent-color: var(--accent); width: 100%; height: 8px; border: none; 
 .log-hours { position: relative; }
 .log-hours time { position: absolute; left: 6px; font-size: 11px; color: var(--muted); }
 
-/* Focus keeps the clock and controls visible; only task content scrolls. */
+/* Spacious windows keep the clock visible above one shared content scroller. */
 .focus-page .app-layout main { height: 100vh; height: 100dvh; padding-bottom: 24px; display: flex; flex-direction: column; }
 .focus-page .topbar { flex-shrink: 0; }
 .focus-page #screen { min-height: 0; flex: 1; }
@@ -434,16 +434,16 @@ progress { accent-color: var(--accent); width: 100%; height: 8px; border: none; 
 .focus-controls .button:hover { background: var(--hover); color: var(--ink); }
 .focus-controls .ui-icon { width: 18px; height: 18px; }
 /* The queue reuses the weekly preview cards without planning/drag semantics. */
-.focus-content { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; gap: 20px; overflow: hidden; }
-.focus-queue { flex: 0 1 auto; min-height: 80px; min-width: 0; max-height: 45%; display: flex; flex-direction: column; }
+.focus-content { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; gap: 20px; overflow: auto; scrollbar-gutter: stable; }
+.focus-queue { flex: 0 0 auto; min-width: 0; display: flex; flex-direction: column; }
 .focus-queue h2 { margin: 0 0 8px; font-size: 16px; font-weight: 550; flex-shrink: 0; }
-.focus-queue .task-list { display: flex; gap: 12px; min-height: 0; overflow-x: auto; overflow-y: auto; overscroll-behavior-x: contain; padding: 3px 3px 10px; }
+.focus-queue .task-list { display: flex; flex: 0 0 auto; align-items: flex-start; gap: 12px; overflow-x: auto; overscroll-behavior-x: contain; padding: 3px 3px 10px; }
 .focus-queue .task { flex: 0 0 min(320px, 85%); min-width: 0; margin: 0; cursor: pointer; align-items: flex-start; user-select: auto; }
 .focus-queue .task-title { font-size: 17px; min-height: 44px; }
 .focus-queue .task:has([aria-pressed="true"]) { border-color: var(--accent); background: var(--hover); }
 .focus-queue .task-actions { display: none; }
 .editor-focus-start { margin: 4px 0 12px; }
-.focus-task { flex: 1; min-height: 0; overflow: auto; scrollbar-gutter: stable; overscroll-behavior: contain; padding: 0 8px 16px 0; text-align: left; }
+.focus-task { flex: 1 0 auto; min-width: 0; padding: 0 8px 16px 0; text-align: left; }
 .focus-task:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .focus-task .tag { display: flex; font-size: 14px; margin: 0 0 10px; }
 .focus-task h2 { font-size: clamp(28px, 3vw, 42px); font-weight: 600; line-height: 1.3; letter-spacing: -.02em; margin: 0 0 18px; overflow-wrap: anywhere; max-width: 36ch; }
@@ -487,6 +487,15 @@ progress { accent-color: var(--accent); width: 100%; height: 8px; border: none; 
     .focus-page .timer { font-size: clamp(48px, 16dvh, 80px); }
     .focus-page #screen .focus-view { gap: 6px; }
     .focus-page .focus-task { padding: 6px 4px 8px 0; }
+}
+
+/* Small screens use document scrolling so neither cards nor notes are squeezed. */
+@media (max-width: 760px), (max-height: 700px) {
+    .focus-page .app-layout main { height: auto; min-height: 100dvh; }
+    .focus-page #screen { flex: 1 0 auto; }
+    .focus-workspace { height: auto; }
+    #screen[data-page="focus"] .focus-view { flex: 1 0 auto; }
+    .focus-content { flex: 1 0 auto; overflow: visible; scrollbar-gutter: auto; }
 }
 
 @media (max-width: 760px), (max-height: 500px) and (pointer: coarse) {
