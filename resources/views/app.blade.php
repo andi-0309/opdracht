@@ -10,8 +10,8 @@
     <link rel="icon" href="/icons/icon.svg?v=7" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=7">
     <script src="/theme.js?v=7"></script>
-    <link rel="stylesheet" href="/app.css?v=22">
-    <script src="/app.js?v=22" defer></script>
+    <link rel="stylesheet" href="/app.css?v=23">
+    <script src="/app.js?v=23" defer></script>
     <title>Opdracht</title>
 </head>
 <body>
@@ -35,7 +35,13 @@
         <div id="screen"><div class="empty"><div class="empty-symbol">◌</div><p>Aufgaben werden geladen …</p></div></div>
     </main>
 </div>
-<dialog id="editor" aria-labelledby="editor-title"><form id="editor-form"><div class="dialog-header"><h2 id="editor-title"></h2><button type="button" class="icon-button" data-close aria-label="Dialog schließen"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/icons/ui.svg?v=6#x"></use></svg></button></div><div id="editor-fields"></div><p id="editor-error" class="form-error" role="alert" tabindex="-1" hidden></p><div class="dialog-actions"><button type="button" class="button subtle" data-close>Abbrechen</button><button type="submit" class="button primary" aria-keyshortcuts="Control+Enter Meta+Enter">Speichern</button></div></form></dialog>
+<dialog id="editor" aria-labelledby="editor-title"><form id="editor-form"><div class="dialog-header"><h2 id="editor-title"></h2><button type="button" class="icon-button" data-close aria-label="Dialog schließen"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/icons/ui.svg?v=6#x"></use></svg></button></div><div id="editor-fields"></div><p id="editor-error" class="form-error" role="alert" tabindex="-1" hidden></p><div class="dialog-actions editor-actions">
+    <div id="editor-secondary-action"></div>
+    <div class="editor-save-actions">
+        <button type="button" class="button subtle" data-close>Abbrechen</button>
+        <button type="submit" class="button primary" aria-keyshortcuts="Control+Enter Meta+Enter">Speichern</button>
+    </div>
+</div></form></dialog>
 <dialog id="confirm-dialog" aria-labelledby="confirm-title"><form method="dialog"><h2 id="confirm-title">Wirklich löschen?</h2><p id="confirm-text"></p><div class="dialog-actions"><button class="button subtle" value="cancel">Abbrechen</button><button class="button danger" value="delete">Löschen</button></div></form></dialog>
 </body>
 </html>

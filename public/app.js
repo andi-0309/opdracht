@@ -333,9 +333,10 @@ function updateTimer() {
     const hours=Math.floor(elapsed/3600);
     timers.forEach(timer=>timer.textContent=(hours?`${String(hours).padStart(2,'0')}:`:'')+`${String(Math.floor(elapsed/60)%60).padStart(2,'0')}:${String(elapsed%60).padStart(2,'0')}`);
 }
-function openEditor(title, fields, onSave) {
+function openEditor(title, fields, onSave, secondaryAction = '') {
     document.querySelector('#editor-title').textContent=title;
     document.querySelector('#editor-fields').innerHTML=fields;
+    document.querySelector('#editor-secondary-action').innerHTML=secondaryAction;
     document.querySelector('#editor-error').hidden=true;
     editorReturnFocus=document.activeElement;
     editorForm.querySelector('.dialog-actions [type="submit"]').textContent='Speichern';
@@ -344,7 +345,30 @@ function openEditor(title, fields, onSave) {
 }
 function taskEditor(task, date=state.today) {
     editorTarget=task?{type:'task',id:task.id}:null;
-    openEditor(task?'Aufgabe bearbeiten':'Aufgabe hinzufügen',`<label>Aufgabe<input name="title" value="${escapeHtml(task?.title)}" maxlength="200" required autofocus autocomplete="off" enterkeyhint="done"></label><label>Beschreibung<textarea name="notes" maxlength="10000" rows="4">${escapeHtml(task?.notes)}</textarea></label><div class="form-row"><label>Quest<select name="quest_id">${questOptions(task?.quest_id)}</select></label><label>Tag<input type="date" name="scheduled_for" value="${escapeHtml(dateValue(task?task.scheduled_for:date))}"></label></div>${task?`${!task.completed_at?`<button type="submit" class="button subtle editor-focus-start" name="intent" value="focus" aria-label="Aufgabe speichern und Fokus starten">${icon('play')} Fokus starten</button>`:''}<label class="check-label"><input type="checkbox" name="completed" ${task.completed_at?'checked':''}> Aufgabe abgeschlossen</label><button type="button" class="text-button" data-action="delete-task" data-id="${task.id}">Aufgabe löschen</button>`:''}`,async data=>{if(!task && !state.focus) selectedTaskId=null;await mutate(task?`/api/tasks/${task.id}`:'/api/tasks',task?'PATCH':'POST',{title:data.get('title').trim(),notes:data.get('notes'),scheduled_for:data.get('scheduled_for')||null,quest_id:data.get('quest_id')?Number(data.get('quest_id')):null,...(task?{completed:data.has('completed')}:{})});});
+    const fields = `
+        <label>Aufgabe<input name="title" value="${escapeHtml(task?.title)}" maxlength="200" required autofocus autocomplete="off" enterkeyhint="done"></label>
+        <label>Beschreibung<textarea name="notes" maxlength="10000" rows="4">${escapeHtml(task?.notes)}</textarea></label>
+        <div class="form-row">
+            <label>Quest<select name="quest_id">${questOptions(task?.quest_id)}</select></label>
+            <label>Tag<input type="date" name="scheduled_for" value="${escapeHtml(dateValue(task?task.scheduled_for:date))}"></label>
+        </div>`;
+    const status = task ? `
+        <div class="task-editor-status">
+            <label class="check-label"><input type="checkbox" name="completed" ${task.completed_at?'checked':''}> Aufgabe abgeschlossen</label>
+            ${task.completed_at ? '' : `<button type="submit" class="button subtle" name="intent" value="focus" aria-label="Aufgabe speichern und Fokus starten">${icon('play')} Fokus starten</button>`}
+        </div>` : '';
+    const deleteAction = task ? `<button type="button" class="icon-button editor-delete" data-action="delete-task" data-id="${task.id}" aria-label="Aufgabe löschen" title="Aufgabe löschen">${icon('trash')}</button>` : '';
+
+    openEditor(task?'Aufgabe bearbeiten':'Aufgabe hinzufügen', fields+status, async data=>{
+        if(!task && !state.focus) selectedTaskId=null;
+        await mutate(task?`/api/tasks/${task.id}`:'/api/tasks',task?'PATCH':'POST',{
+            title:data.get('title').trim(),
+            notes:data.get('notes'),
+            scheduled_for:data.get('scheduled_for')||null,
+            quest_id:data.get('quest_id')?Number(data.get('quest_id')):null,
+            ...(task?{completed:data.has('completed')}:{})
+        });
+    }, deleteAction);
     if(!task) editorForm.querySelector('.dialog-actions [type="submit"]').textContent='Aufgabe hinzufügen';
 }
 function questEditor(quest) {
@@ -644,7 +668,7 @@ function pwaError(error) {
     output.hidden = false;
 }
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=22').then(registration => {
+    navigator.serviceWorker.register('/sw.js?v=23').then(registration => {
         const watch = () => {
             const worker = registration.installing;
             worker?.addEventListener('statechange', () => {

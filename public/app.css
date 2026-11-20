@@ -231,6 +231,18 @@ dialog::backdrop { background: var(--backdrop); backdrop-filter: blur(3px); }
 .dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 20px; }
 .dialog-header h2 { margin: 0; }
 .dialog-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 25px; flex-wrap: wrap; }
+.editor-actions { align-items: center; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+#editor-secondary-action { margin-inline-end: auto; }
+#editor-secondary-action:empty { display: none; }
+.editor-save-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.editor-delete, .editor-delete:hover { color: var(--error); }
+.task-editor-status { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
+.task-editor-status .check-label { margin: 0; }
+.task-editor-status .button { gap: 8px; padding-inline: 12px; }
+@media (max-width: 420px) {
+    #editor { width: calc(100vw - 20px); max-width: calc(100% - 20px); padding: 16px; }
+    .editor-save-actions .button { font-size: 14px; padding-inline: 10px; }
+}
 label { display: block; font-size: 16px; font-weight: 550; margin-bottom: 20px; }
 label input, label select, label textarea { display: block; width: 100%; min-height: 50px; border: 1px solid var(--line); background: var(--paper); border-radius: 8px; padding: 12px; color: var(--ink); margin-top: 8px; font-size: 17px; }
 label textarea { min-height: 110px; resize: vertical; }
@@ -442,7 +454,6 @@ progress { accent-color: var(--accent); width: 100%; height: 8px; border: none; 
 .focus-queue .task-title { font-size: 17px; min-height: 44px; }
 .focus-queue .task:has([aria-pressed="true"]) { border-color: var(--accent); background: var(--hover); }
 .focus-queue .task-actions { display: none; }
-.editor-focus-start { margin: 4px 0 12px; }
 .focus-task { flex: 1 0 auto; min-width: 0; padding: 0 8px 16px 0; text-align: left; }
 .focus-task:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .focus-task .tag { display: flex; font-size: 14px; margin: 0 0 10px; }
