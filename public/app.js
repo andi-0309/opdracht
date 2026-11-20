@@ -46,12 +46,23 @@ const planningColors = [
 function colorChoices(value) {
     const requested=color(value).toLowerCase();
     const selected=planningColors.some(choice=>choice.value===requested) ? requested : planningColors[0].value;
-    const choices=planningColors;
-    return `<fieldset class="color-palette"><legend>Farbe</legend><div class="color-options">${choices.map(choice=>`<label class="color-choice"><input type="radio" name="color" value="${choice.value}" ${choice.value===selected?'checked':''} required><span class="color-option"><span class="color-swatch" style="--choice-color:${choice.value}" aria-hidden="true"></span><span>${choice.name}</span><span class="color-check" aria-hidden="true">✓</span></span></label>`).join('')}</div></fieldset>`;
+    return `<fieldset class="color-palette"><legend>Farbe</legend><div class="color-options">${planningColors.map(choice=>`<label class="color-choice"><input type="radio" name="color" value="${choice.value}" ${choice.value===selected?'checked':''} required><span class="color-option"><span class="color-swatch" style="--choice-color:${choice.value}" aria-hidden="true"></span><span>${choice.name}</span><span class="color-check" aria-hidden="true">✓</span></span></label>`).join('')}</div></fieldset>`;
 }
 const dateValue = value => value ? String(value).slice(0, 10) : null;
 const localDate = value => new Date(`${dateValue(value)}T12:00:00`);
 const dateKey = date => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+function addDays(date, days) {
+    const result = new Date(date);
+    result.setDate(result.getDate() + days);
+    return result;
+}
+
+function weekStart(offset) {
+    const today = localDate(state.today);
+    const daysSinceMonday = (today.getDay() + 6) % 7;
+    return addDays(today, offset * 7 - daysSinceMonday);
+}
+
 const dayLabel = value => localDate(value).toLocaleDateString('de-DE', {day:'numeric',month:'short'});
 const taskQuest = task => state.quests.find(q => q.id === task.quest_id);
 const duration = value => {const minutes = Math.floor(Number(value || 0) / 60); return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes/60)} h ${String(minutes%60).padStart(2,'0')}`;};
@@ -168,21 +179,40 @@ function todayScreen() {
     const completed = state.tasks.filter(t => t.completed_at);
     return header('Heute', '<button class="button primary" data-action="new-task">Aufgabe hinzufügen</button>') + stats() + `<div class="today-tasks">${overdue.length ? taskSection('Überfällig',overdue,'') : ''}${taskSection('Für heute',today,'Keine Aufgaben für heute.',state.today)}${taskSection('Ohne Termin',inbox,'Keine Aufgaben ohne Termin.',null)}${completedSection(completed)}</div>`;
 }
-function weekStart() {const date = localDate(state.today); date.setDate(date.getDate() - (date.getDay()+6)%7 + weekOffset*7); return date;}
+function weekDay(date) {
+    const key = dateKey(date);
+    const dayTasks = state.tasks.filter(task => dateValue(task.scheduled_for) === key);
+    const tasks = dayTasks.filter(task => !task.completed_at);
+    const completed = dayTasks.filter(task => task.completed_at);
+    const taskList = tasks.length
+        ? `<ul class="task-list active-task-list">${tasks.map(task => taskRow(task, true)).join('')}</ul>`
+        : '<p class="empty-small">Keine Aufgaben.</p>';
+
+    return `<section class="day ${key === state.today ? 'current' : ''}" data-drop-date="${key}">
+        <div class="day-heading"><span>${date.toLocaleDateString('de-DE', {weekday:'short'})}</span><strong>${date.getDate()}</strong></div>
+        ${taskList}<button class="day-add" data-action="new-task" data-date="${key}">+ Aufgabe</button>${completedSection(completed, true)}
+    </section>`;
+}
+
 function weekScreen() {
-    const start = weekStart();
-    const end = new Date(start); end.setDate(end.getDate()+6);
-    const days = Array.from({length:7},(_,i) => {const d=new Date(start); d.setDate(d.getDate()+i); return d;});
-    return header('Woche', `<div class="week-nav"><button class="icon-button" data-action="previous-week" aria-label="Vorherige Woche">${icon('chevron-left')}</button><span class="week-title">${dayLabel(dateKey(start))} – ${dayLabel(dateKey(end))}</span><button class="icon-button" data-action="next-week" aria-label="Nächste Woche">${icon('chevron-right')}</button><button class="button small subtle" data-action="current-week">Heute</button></div>`) + `<div class="week-grid" role="region" aria-label="Wochenplanung, bei Bedarf seitlich scrollen" tabindex="0">${days.map(d => {const key=dateKey(d);const dayTasks=state.tasks.filter(t=>dateValue(t.scheduled_for)===key);const tasks=dayTasks.filter(t=>!t.completed_at);const completed=dayTasks.filter(t=>t.completed_at);return `<section class="day ${key===state.today?'current':''}" data-drop-date="${key}"><div class="day-heading"><span>${d.toLocaleDateString('de-DE',{weekday:'short'})}</span><strong>${d.getDate()}</strong></div>${tasks.length?`<ul class="task-list active-task-list">${tasks.map(t=>taskRow(t,true)).join('')}</ul>`:'<p class="empty-small">Keine Aufgaben.</p>'}<button class="day-add" data-action="new-task" data-date="${key}">+ Aufgabe</button>${completedSection(completed,true)}</section>`;}).join('')}</div>`;
+    const start = weekStart(weekOffset);
+    const days = Array.from({length: 7}, (_, index) => addDays(start, index));
+    const weekLabel = `${dayLabel(dateKey(start))} – ${dayLabel(dateKey(days[6]))}`;
+    const navigation = `<div class="week-nav">
+        <button class="icon-button" data-action="previous-week" aria-label="Vorherige Woche">${icon('chevron-left')}</button>
+        <span class="week-title">${weekLabel}</span>
+        <button class="icon-button" data-action="next-week" aria-label="Nächste Woche">${icon('chevron-right')}</button>
+        <button class="button small subtle" data-action="current-week">Heute</button>
+    </div>`;
+    return header('Woche', navigation) + `<div class="week-grid" role="region" aria-label="Wochenplanung, bei Bedarf seitlich scrollen" tabindex="0">${days.map(weekDay).join('')}</div>`;
 }
 function questsScreen() {
     const quests=state.quests.filter(q=>Boolean(q.completed_at)===showCompletedQuests);
     return header('Quests', '<button class="button primary" data-action="new-quest">+ Neue Quest</button>') + `<div class="tabs" role="group" aria-label="Quests filtern"><button class="${!showCompletedQuests?'active':''}" data-action="active-quests" aria-pressed="${!showCompletedQuests}">Aktiv · ${state.quests.filter(q=>!q.completed_at).length}</button><button class="${showCompletedQuests?'active':''}" data-action="completed-quests" aria-pressed="${showCompletedQuests}">Abgeschlossen · ${state.quests.filter(q=>q.completed_at).length}</button></div>` + (quests.length ? `<div class="quest-grid">${quests.map(q=>{const tasks=state.tasks.filter(t=>t.quest_id===q.id);const done=tasks.filter(t=>t.completed_at).length;return `<article class="quest-card" style="--quest-color:${color(q.color)}"><div class="quest-top"><span class="quest-icon" aria-hidden="true">${icon('target')}</span><div><button class="icon-button" data-action="edit-quest" data-id="${q.id}" aria-label="${escapeHtml(q.title)} bearbeiten">${icon('pencil')}</button></div></div><h2>${escapeHtml(q.title)}</h2>${q.why?`<h3>Warum ist es wichtig?</h3><p>${escapeHtml(q.why)}</p>`:''}${q.description ? `<h3>Worum geht es genau?</h3><p>${escapeHtml(q.description)}</p>` : ''}${q.weekly_minutes?`<div class="weekly-goal"><strong>Wochenziel</strong><span>${duration(state.weekly.quest_seconds?.[q.id]||0)} / ${duration(q.weekly_minutes*60)}</span><progress max="${q.weekly_minutes*60}" value="${Math.min(q.weekly_minutes*60,state.weekly.quest_seconds?.[q.id]||0)}" aria-label="Wochenzeit für ${escapeHtml(q.title)}"></progress></div>`:''}<div class="quest-progress"><span data-progress-id="quest-${q.id}" style="width:${tasks.length?Math.round(done/tasks.length*100):0}%"></span></div><div class="quest-footer"><span>${done} / ${tasks.length} Aufgaben</span><span>${duration(tasks.reduce((sum,t)=>sum+Number(t.focus_seconds||0),0))} Fokus</span></div></article>`;}).join('')}</div>` : `<div class="empty"><div class="empty-symbol">◇</div><h2>${showCompletedQuests?'Keine abgeschlossenen Quests.':'Keine Quests vorhanden.'}</h2>${!showCompletedQuests?'<button class="button primary" data-action="new-quest">Quest erstellen</button>':''}</div>`);
 }
 function focusQueue() {
-    const tomorrow=localDate(state.today);
-    tomorrow.setDate(tomorrow.getDate()+1);
-    const dates=[state.today, null, dateKey(tomorrow)];
+    const tomorrow = dateKey(addDays(localDate(state.today), 1));
+    const dates = [state.today, null, tomorrow];
     return dates.flatMap(date=>state.tasks.filter(task=>!task.completed_at && dateValue(task.scheduled_for)===date)).slice(0,10);
 }
 function focusQueuePanel() {
@@ -223,7 +253,9 @@ window.addEventListener('resize', syncImmersive);
 window.addEventListener('orientationchange', syncImmersive);
 window.screen?.orientation?.addEventListener?.('change', syncImmersive);
 window.matchMedia?.('(orientation: landscape)').addEventListener?.('change', syncImmersive);
-function reviewStart() {const date=localDate(state.today);date.setDate(date.getDate()-(date.getDay()+6)%7+reviewOffset*7);return dateKey(date);}
+function reviewStart() {
+    return dateKey(weekStart(reviewOffset));
+}
 async function loadReview() {
     const sequence=++reviewSequence, week=reviewStart();
     try {
@@ -265,7 +297,9 @@ function logCalendar(days) {
     }).join('')}</div>`;
 }
 function reviewScreen() {
-    const start=reviewStart(), date=localDate(start),end=new Date(date);end.setDate(end.getDate()+6);
+    const start = reviewStart();
+    const date = localDate(start);
+    const end = addDays(date, 6);
     const navigation=`<div class="week-nav"><button class="icon-button" data-action="previous-review" aria-label="Vorherige Woche">${icon('chevron-left')}</button><span>${dayLabel(start)} – ${dayLabel(dateKey(end))}</span><button class="icon-button" data-action="next-review" aria-label="Nächste Woche">${icon('chevron-right')}</button><button class="button small subtle" data-action="current-review">Diese Woche</button></div>`;
     if(!reviewData || reviewData.week_start!==start) return header('Rückblick',navigation)+'<p role="status">Arbeitslogbuch wird geladen …</p>';
     const days=sessionDays(reviewData.sessions,start);
@@ -417,14 +451,19 @@ document.addEventListener('click',async event=>{
     } catch(error) { showError(error.message); }
     finally { button.disabled=false; }
 });
-// Only replace this list's slots: hidden tasks and other days stay in place.
+// Replace only this list's slots so hidden tasks and other days stay in place.
+function replaceTaskSlots(allIds, visibleIds, reorderedIds) {
+    const visible = new Set(visibleIds);
+    let index = 0;
+    return allIds.map(id => visible.has(id) ? reorderedIds[index++] : id);
+}
+
 function reorderedTaskIds(allIds, visibleIds, movedId, targetId) {
     if (movedId===targetId || !visibleIds.includes(movedId) || !visibleIds.includes(targetId)) return allIds.slice();
     const reordered=visibleIds.slice();
     reordered.splice(reordered.indexOf(movedId),1);
     reordered.splice(visibleIds.indexOf(targetId),0,movedId);
-    let index=0;
-    return allIds.map(id=>visibleIds.includes(id)?reordered[index++]:id);
+    return replaceTaskSlots(allIds, visibleIds, reordered);
 }
 async function persistTaskOrder(visibleIds, movedId, targetId) {
     const allIds=state.tasks.map(task=>task.id);
@@ -459,8 +498,7 @@ async function persistTaskDrop(drag) {
         const visible=destinationIds.filter(id=>id!==movedId);
         const index=drag.beforeId===null ? visible.length : visible.indexOf(drag.beforeId);
         visible.splice(index<0?visible.length:index,0,movedId);
-        let slot=0;
-        orderedIds=allIds.map(id=>destinationIds.includes(id)?visible[slot++]:id);
+        orderedIds = replaceTaskSlots(allIds, destinationIds, visible);
     } else orderedIds=droppedTaskIds(allIds,destinationIds,movedId,drag.beforeId);
     if(sameDate && orderedIds.every((id,index)=>id===allIds[index])) return;
     await mutate('/api/tasks/reorder','POST',{task_ids:orderedIds,...(!sameDate?{moved_task_id:movedId,scheduled_for:scheduledFor}:{})});
@@ -668,7 +706,7 @@ function pwaError(error) {
     output.hidden = false;
 }
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=23').then(registration => {
+    navigator.serviceWorker.register('/sw.js?v=24').then(registration => {
         const watch = () => {
             const worker = registration.installing;
             worker?.addEventListener('statechange', () => {

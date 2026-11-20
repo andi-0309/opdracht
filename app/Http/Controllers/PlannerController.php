@@ -15,21 +15,42 @@ class PlannerController extends Controller
 {
     public function state(Request $request): JsonResponse
     {
-        $uid = $request->user()->id;
+        $user = $request->user();
         $now = CarbonImmutable::now();
         $start = $now->startOfWeek();
-        $sessions = FocusSession::where('user_id', $uid)->where(fn ($q) => $q->whereNull('ended_at')->orWhere('ended_at', '>=', $start))->get();
-        $seconds = $sessions->sum(fn ($s) => max(0, $s->started_at->max($start)->diffInSeconds($s->ended_at ?? $now, false)));
-        $totals = FocusSession::where('user_id', $uid)->whereNotNull('ended_at')->selectRaw('task_id, SUM(seconds) as total')->groupBy('task_id')->pluck('total', 'task_id');
-        $tasks = Task::where('user_id', $uid)->orderBy('position')->orderBy('id')->get()->map(function (Task $task) use ($totals) {
-            return [...$task->only(['id', 'quest_id', 'title', 'notes', 'completed_at']), 'scheduled_for' => $task->scheduled_for?->format('Y-m-d'), 'focus_seconds' => (int) ($totals[$task->id] ?? 0)];
-        });
+
+        $sessions = FocusSession::where('user_id', $user->id)
+            ->where(fn ($query) => $query->whereNull('ended_at')->orWhere('ended_at', '>=', $start))
+            ->get();
+        $secondsThisWeek = fn (FocusSession $session) => max(
+            0,
+            $session->started_at->max($start)->diffInSeconds($session->ended_at ?? $now, false),
+        );
+        $questSeconds = $sessions->whereNotNull('quest_id')->groupBy('quest_id')
+            ->map(fn ($group) => (int) $group->sum($secondsThisWeek));
+        $taskSeconds = FocusSession::where('user_id', $user->id)->whereNotNull('ended_at')
+            ->selectRaw('task_id, SUM(seconds) as total')->groupBy('task_id')->pluck('total', 'task_id');
+
+        $tasks = Task::where('user_id', $user->id)->orderBy('position')->orderBy('id')->get()
+            ->map(fn (Task $task) => [
+                ...$task->only(['id', 'quest_id', 'title', 'notes', 'completed_at']),
+                'scheduled_for' => $task->scheduled_for?->format('Y-m-d'),
+                'focus_seconds' => (int) ($taskSeconds[$task->id] ?? 0),
+            ]);
 
         return response()->json([
-            'user' => $request->user()->only('name'), 'today' => $now->format('Y-m-d'), 'server_now' => $now->toIso8601String(),
-            'quests' => Quest::where('user_id', $uid)->orderBy('id')->get(['id', 'title', 'description', 'why', 'weekly_minutes', 'color', 'completed_at']),
-            'tasks' => $tasks, 'focus' => $sessions->firstWhere('ended_at', null)?->only(['id', 'task_id', 'started_at']),
-            'weekly' => ['quest_seconds' => $sessions->whereNotNull('quest_id')->groupBy('quest_id')->map(fn ($items) => (int) $items->sum(fn ($item) => max(0, $item->started_at->max($start)->diffInSeconds($item->ended_at ?? $now, false)))), 'seconds' => (int) $seconds, 'completed' => Task::where('user_id', $uid)->where('completed_at', '>=', $start)->count()],
+            'user' => $user->only('name'),
+            'today' => $now->format('Y-m-d'),
+            'server_now' => $now->toIso8601String(),
+            'quests' => Quest::where('user_id', $user->id)->orderBy('id')
+                ->get(['id', 'title', 'description', 'why', 'weekly_minutes', 'color', 'completed_at']),
+            'tasks' => $tasks,
+            'focus' => $sessions->firstWhere('ended_at', null)?->only(['id', 'task_id', 'started_at']),
+            'weekly' => [
+                'quest_seconds' => $questSeconds,
+                'seconds' => (int) $sessions->sum($secondsThisWeek),
+                'completed' => Task::where('user_id', $user->id)->where('completed_at', '>=', $start)->count(),
+            ],
         ])->header('Cache-Control', 'private, no-store');
     }
 
@@ -59,7 +80,7 @@ class PlannerController extends Controller
     private function questData(Request $request, bool $partial = false): array
     {
         $data = $request->validate([
-            'title' => [$partial ? 'sometimes' : 'required', 'required', 'string', 'max:200'],
+            'title' => [...($partial ? ['sometimes'] : []), 'required', 'string', 'max:200'],
             'description' => ['nullable', 'string', 'max:10000'],
             'why' => ['nullable', 'string', 'max:10000'],
             'weekly_minutes' => ['nullable', 'integer', 'min:1', 'max:10080'], 'color' => ['sometimes', 'regex:/^#[0-9a-fA-F]{6}$/'],
@@ -76,7 +97,7 @@ class PlannerController extends Controller
     private function taskData(Request $request, bool $partial = false): array
     {
         return $request->validate([
-            'title' => [$partial ? 'sometimes' : 'required', 'required', 'string', 'max:200'],
+            'title' => [...($partial ? ['sometimes'] : []), 'required', 'string', 'max:200'],
             'notes' => ['nullable', 'string', 'max:10000'],
             'quest_id' => ['nullable', 'integer', Rule::exists('quests', 'id')->where('user_id', $request->user()->id)],
             'scheduled_for' => ['nullable', 'date_format:Y-m-d'], 'completed' => ['sometimes', 'boolean'],
@@ -130,7 +151,7 @@ class PlannerController extends Controller
             if (array_key_exists('completed', $data)) {
                 $data['completed_at'] = $data['completed'] ? ($task->completed_at ?? now()) : null;
                 if ($data['completed']) {
-                    $this->finish(FocusSession::where('user_id', $request->user()->id)->where('task_id', $id)->whereNull('ended_at')->first());
+                    $this->finish($this->activeFocus($task->user_id, $task->id));
                 }
                 unset($data['completed']);
             }
@@ -144,7 +165,7 @@ class PlannerController extends Controller
     {
         DB::transaction(function () use ($request, $id) {
             $task = Task::where('user_id', $request->user()->id)->findOrFail($id);
-            $this->finish(FocusSession::where('user_id', $request->user()->id)->where('task_id', $id)->whereNull('ended_at')->first());
+            $this->finish($this->activeFocus($task->user_id, $task->id));
             $task->delete();
         });
 
@@ -157,7 +178,7 @@ class PlannerController extends Controller
         $session = DB::transaction(function () use ($request, $data) {
             $task = Task::where('user_id', $request->user()->id)->findOrFail($data['task_id']);
             abort_if($task->completed_at !== null, 422, 'Erledigte Aufgaben können nicht gestartet werden.');
-            $active = FocusSession::where('user_id', $request->user()->id)->whereNull('ended_at')->first();
+            $active = $this->activeFocus($task->user_id);
             if ($active?->task_id === $task->id) {
                 return $active;
             }
@@ -231,6 +252,16 @@ class PlannerController extends Controller
         ], ['notes' => $data['notes'], 'updated_at' => now(), 'created_at' => now()]);
 
         return response()->json(['ok' => true]);
+    }
+
+    private function activeFocus(int $userId, ?int $taskId = null): ?FocusSession
+    {
+        $query = FocusSession::where('user_id', $userId)->whereNull('ended_at');
+        if ($taskId !== null) {
+            $query->where('task_id', $taskId);
+        }
+
+        return $query->first();
     }
 
     private function finish(?FocusSession $session): void
