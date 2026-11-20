@@ -30,9 +30,11 @@ void main() {
       expect(result, isNull);
       await tester.tap(find.text('Datum öffnen'));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('24'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Übernehmen'));
       await tester.pumpAndSettle();
-      expect(result, '2026-11-20');
+      expect(result, '2026-11-24');
     });
   }
 
