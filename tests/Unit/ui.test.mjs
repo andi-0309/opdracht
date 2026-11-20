@@ -172,11 +172,12 @@ test('completion remains an accessible checkbox with a compact square check icon
 test('mobile focus uses dynamic viewport and safe areas in both orientations without body clipping', () => {
     const css=fs.readFileSync(new URL('../../public/app.css',import.meta.url),'utf8');
     assert.match(css,/focus-page \.app-layout main { height: 100vh; height: 100dvh/);
+    assert.match(css,/@media \(max-width: 760px\), \(max-height: 700px\) {[\s\S]*?main { height: auto; min-height: 100dvh;/);
     assert.match(css,/orientation: landscape/);
     assert.match(css,/env\(safe-area-inset-left\)/);
     assert.doesNotMatch(css,/body[^{}]*{[^}]*overflow:\s*hidden/);
     const sw=fs.readFileSync(new URL('../../public/sw.js',import.meta.url),'utf8');
-    assert.match(sw,/opdracht-static-v21/);assert.match(sw,/app.js\?v=21/);assert.match(sw,/ui.svg\?v=6/);
+    assert.match(sw,/opdracht-static-v22/);assert.match(sw,/app.js\?v=22/);assert.match(sw,/ui.svg\?v=6/);
 });
 
 function dragFixture() {
@@ -414,10 +415,10 @@ test('page motion runs only on navigation, completion motion on changes, and red
 });
 test('cache references agree across worker and Blade views while UI icon version stays 6',()=>{
     for(const file of ['public/sw.js','resources/views/app.blade.php','resources/views/login.blade.php']) {
-        const contents=fs.readFileSync(new URL('../../'+file,import.meta.url),'utf8');assert.match(contents,/app.css\?v=21/);assert.doesNotMatch(contents,/app\.(css|js)\?v=13/);
+        const contents=fs.readFileSync(new URL('../../'+file,import.meta.url),'utf8');assert.match(contents,/app.css\?v=22/);assert.doesNotMatch(contents,/app\.(css|js)\?v=13/);
     }
-    assert.match(source,/sw.js\?v=21/);assert.match(source,/ui.svg\?v=6/);
-    assert.match(fs.readFileSync(new URL('../../resources/views/login.blade.php',import.meta.url),'utf8'),/sw.js\?v=21/);
+    assert.match(source,/sw.js\?v=22/);assert.match(source,/ui.svg\?v=6/);
+    assert.match(fs.readFileSync(new URL('../../resources/views/login.blade.php',import.meta.url),'utf8'),/sw.js\?v=22/);
 });
 test('completion and reopening animate once without changing dates/focus or animating every refresh',()=>{
     const ui=app(),row=ui.node('motion-row'),details=ui.node('motion-details'),summary=ui.node('motion-summary');let cards=0,summaries=0;
@@ -533,18 +534,21 @@ test('focus places clock and controls before complete readable task content with
     assert.doesNotMatch(html,/EINE AUFGABE|Dein Fokus|serverseitig|Beim Stoppen/);
     const css=fs.readFileSync(new URL('../../public/app.css',import.meta.url),'utf8');
     assert.match(css,/\.focus-clock { flex-shrink: 0/);
-    assert.match(css,/\.focus-task {[^}]*min-height: 0; overflow: auto;/);
+    assert.match(css,/\.focus-content {[^}]*overflow: auto;/);
+    assert.match(css,/\.focus-queue { flex: 0 0 auto;/);
+    assert.match(css,/\.focus-task { flex: 1 0 auto;/);
+    assert.doesNotMatch(css,/\.focus-queue {[^}]*max-height:/);
     assert.match(css,/\.focus-notes { max-width: 65ch; font-size: 20px; line-height: 1.7/);
     assert.doesNotMatch(css,/focus-eyebrow|focus-exit-hint|-webkit-line-clamp: 2/);
 });
 test('focus refresh retains content scroll and region focus for the same task, not a different task',()=>{
-    const ui=app(),content=ui.node('task-content');content.dataset.contentKey='1';content.scrollTop=180;let focused=0;content.focus=()=>focused++;
-    ui.node('#screen').querySelector=selector=>selector==='.focus-task'?content:null;
+    const ui=app(),content=ui.node('task-content'),scroller=ui.node('content-scroller');content.dataset.contentKey='1';scroller.scrollTop=180;let focused=0;content.focus=()=>focused++;
+    ui.node('#screen').querySelector=selector=>selector==='.focus-task'?content:selector==='.focus-content'?scroller:null;
     ui.run('state={today:"2026-11-19",tasks:[{id:1,title:"Task"}],quests:[],weekly:{}};location.hash="#focus";document.activeElement=document.querySelector("task-content");render()');
-    let html='';Object.defineProperty(ui.node('#screen'),'innerHTML',{get(){return html;},set(value){html=value;content.scrollTop=0;}});
-    content.scrollTop=180;ui.run('render()');assert.equal(content.scrollTop,180);assert.equal(focused,1);
+    let html='';Object.defineProperty(ui.node('#screen'),'innerHTML',{get(){return html;},set(value){html=value;scroller.scrollTop=0;}});
+    scroller.scrollTop=180;ui.run('render()');assert.equal(scroller.scrollTop,180);assert.equal(focused,1);
     Object.defineProperty(content.dataset,'contentKey',{get(){return html.includes('data-content-key="2"')?'2':'1';},configurable:true});
-    ui.run('state.tasks=[{id:2,title:"Different"}];render()');assert.equal(content.scrollTop,0);
+    ui.run('state.tasks=[{id:2,title:"Different"}];render()');assert.equal(scroller.scrollTop,0);
 });
 
 test('focus queue groups today, undated, tomorrow in saved order, excludes other dates and done, caps at ten',()=>{
