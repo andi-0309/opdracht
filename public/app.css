@@ -356,9 +356,7 @@ label textarea { min-height: 110px; resize: vertical; }
 }
 .week-grid:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .day { min-width: 0; padding-inline: 12px; }
-.day .task-body { flex-basis: calc(100% - 46px); }
 .day .task-check { width: 36px; height: 44px; }
-.day .task-actions { flex-basis: 100%; justify-content: flex-end; }
 
 
 /* Focus viewport rules below do not constrain planning lists or login. */

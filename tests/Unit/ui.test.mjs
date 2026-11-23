@@ -466,10 +466,13 @@ test('focus renders complete task notes and chooses newly available due work ove
     assert.equal(ui.run('focusTask().id'),2);assert.match(ui.run('focusPanel()'),/<strong>All content<\/strong>/);
     ui.run('state.focus={id:9,task_id:1}');assert.equal(ui.run('focusTask().id'),1);
 });
-test('weekly cards show Markdown preview without quick-start and Today uses one modal creation button',()=>{
+test('weekly cards show Markdown preview and only offer a shortcut while focus is running',()=>{
     const ui=app();ui.run('state={today:"2026-11-19",tasks:[],quests:[{id:1,title:"Quest"}],weekly:{},focus:null};');
     const card=ui.run('taskRow({id:1,title:"Work",notes:"- First\\n- Second"},true)');
     assert.match(card,/task-preview/);assert.match(card,/<li>First<\/li>/);assert.doesNotMatch(card,/data-action="focus-task"/);
+    ui.run('state.focus={id:8,task_id:2};state.tasks=[{id:1,title:"Work",scheduled_for:state.today}]');
+    assert.match(ui.run('weekScreen()'),/aria-label="Fokus wechseln zu: Work"/);
+    assert.doesNotMatch(ui.run('taskRow(state.tasks[0],true,true)'),/data-action="focus-task"/);
     const today=ui.run('todayScreen()');
     assert.equal((today.match(/data-action="new-task"/g)||[]).length,1);
     assert.match(today,/>Aufgabe hinzufügen<\/button>/);
@@ -587,6 +590,21 @@ test('queue clicks select idle tasks without starting a timer and open editor be
     const before=ui.requests();await ui.events.click({target:button,detail:0});assert.equal(ui.run('selectedTaskId'),2);assert.equal(ui.requests(),before);
     ui.run('state.focus={id:8,task_id:1};');await ui.events.click({target:button,detail:0});
     assert.equal(ui.node('#editor').open,true);assert.equal(ui.run('state.focus.task_id'),1);
+});
+test('task row focus switches a running timer, without restarting the same task',async()=>{
+    const ui=app();
+    ui.run('state={today:"2026-11-19",quests:[],tasks:[{id:1,title:"One"},{id:2,title:"Two"}],focus:{id:8,task_id:1}};location.hash="#week";');
+    const button=ui.node('focus-two');
+    button.dataset={action:'focus-task',id:'2'};
+    button.closest=selector=>selector==='[data-action]'?button:null;
+    ui.run('calls=[];mutate=async(path,method,body)=>{calls.push([path,method,body.task_id]);state.focus={id:9,task_id:body.task_id};};');
+    const click=()=>ui.events.click({target:button,detail:0});
+    await click();
+    assert.deepEqual(Array.from(ui.run('calls[0]')),['/api/focus','POST',2]);
+    assert.equal(ui.run('focusTask().id'),2);
+    assert.equal(ui.run('location.hash'),'focus');
+    await click();
+    assert.equal(ui.run('calls.length'),1);
 });
 test('modal Play saves validated edits before starting selected task, then navigates to focus',async()=>{
     const ui=app();ui.run('state={today:"2026-11-19",quests:[],tasks:[{id:2,title:"Work"}],focus:{id:8,task_id:1}};taskEditor(state.tasks[0]);');

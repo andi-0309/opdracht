@@ -167,7 +167,9 @@ function stats() {
 }
 function taskRow(task, compact = false, selectable = false) {
     const running = state.focus?.task_id === task.id;
-    return `<li class="task ${task.completed_at ? 'done' : ''}" ${selectable ? `data-queue-id="${task.id}" data-action="select-focus-task" data-id="${task.id}"` : `data-task-id="${task.id}"`} ${!selectable && !task.completed_at ? `tabindex="0" aria-label="${escapeHtml(task.title)} verschieben" aria-describedby="reorder-help" aria-keyshortcuts="ArrowUp ArrowDown"` : ''}>${!compact ? `<button class="task-check" role="checkbox" aria-checked="${Boolean(task.completed_at)}" aria-label="${escapeHtml(task.completed_at ? 'Wieder öffnen: ' : 'Erledigen: ')}${escapeHtml(task.title)}" data-action="toggle-task" data-id="${task.id}"><span class="task-check-box">${icon('check')}</span></button>` : ''}<div class="task-body"><button class="task-title" data-action="${selectable ? 'select-focus-task' : 'edit-task'}" data-id="${task.id}" ${selectable ? `aria-pressed="${focusTask()?.id===task.id}"` : ''}>${escapeHtml(task.title)}</button>${compact && task.notes ? `<div class="markdown task-preview">${markdown(task.notes)}</div>` : ''}<div class="task-meta">${selectable?`<span>${!task.scheduled_for?'Ohne Datum':dateValue(task.scheduled_for)===state.today?'Heute':'Morgen'}</span>`:''}${tag(taskQuest(task))}${!compact && task.scheduled_for && dateValue(task.scheduled_for) !== state.today ? `<span>${dayLabel(task.scheduled_for)}</span>` : ''}${task.focus_seconds ? `<span>${duration(task.focus_seconds)}</span>` : ''}</div></div><div class="task-actions">${!compact && !task.completed_at ? `<button class="icon-button" data-action="focus-task" data-id="${task.id}" aria-label="Fokus für ${escapeHtml(task.title)}" title="Fokus">${icon(running ? 'timer' : 'play')}</button>` : ''}</div></li>`;
+    const showFocusAction = !task.completed_at && !selectable && (!compact || Boolean(state.focus));
+    const focusLabel = running ? 'Laufenden Fokus anzeigen' : state.focus ? 'Fokus wechseln zu' : 'Fokus für';
+    return `<li class="task ${task.completed_at ? 'done' : ''}" ${selectable ? `data-queue-id="${task.id}" data-action="select-focus-task" data-id="${task.id}"` : `data-task-id="${task.id}"`} ${!selectable && !task.completed_at ? `tabindex="0" aria-label="${escapeHtml(task.title)} verschieben" aria-describedby="reorder-help" aria-keyshortcuts="ArrowUp ArrowDown"` : ''}>${!compact ? `<button class="task-check" role="checkbox" aria-checked="${Boolean(task.completed_at)}" aria-label="${escapeHtml(task.completed_at ? 'Wieder öffnen: ' : 'Erledigen: ')}${escapeHtml(task.title)}" data-action="toggle-task" data-id="${task.id}"><span class="task-check-box">${icon('check')}</span></button>` : ''}<div class="task-body"><button class="task-title" data-action="${selectable ? 'select-focus-task' : 'edit-task'}" data-id="${task.id}" ${selectable ? `aria-pressed="${focusTask()?.id===task.id}"` : ''}>${escapeHtml(task.title)}</button>${compact && task.notes ? `<div class="markdown task-preview">${markdown(task.notes)}</div>` : ''}<div class="task-meta">${selectable?`<span>${!task.scheduled_for?'Ohne Datum':dateValue(task.scheduled_for)===state.today?'Heute':'Morgen'}</span>`:''}${tag(taskQuest(task))}${!compact && task.scheduled_for && dateValue(task.scheduled_for) !== state.today ? `<span>${dayLabel(task.scheduled_for)}</span>` : ''}${task.focus_seconds ? `<span>${duration(task.focus_seconds)}</span>` : ''}</div></div><div class="task-actions">${showFocusAction ? `<button class="icon-button" data-action="focus-task" data-id="${task.id}" aria-label="${focusLabel}: ${escapeHtml(task.title)}" title="${running ? 'Laufenden Fokus anzeigen' : state.focus ? 'Fokus wechseln' : 'Fokus'}">${icon(running ? 'timer' : 'play')}</button>` : ''}</div></li>`;
 }
 function questOptions(selected) {
     return '<option value="">Ohne Quest</option>'+state.quests.filter(q=>!q.completed_at || q.id===selected).map(q=>`<option value="${q.id}" ${q.id===selected?'selected':''}>${escapeHtml(q.title)}</option>`).join('');
@@ -500,8 +502,11 @@ document.addEventListener('click',async event=>{
             if(state.focus && state.focus.task_id!==id) return taskEditor(task);
             selectedTaskId=id;return render();
         }
-        if(action==='focus-task'){selectedTaskId=id;location.hash='focus';return render();}
         button.disabled=true;
+        if(action==='focus-task'&&task&&!task.completed_at){
+            if(state.focus && state.focus.task_id!==id) await mutate('/api/focus','POST',{task_id:id});
+            selectedTaskId=id;location.hash='focus';return render();
+        }
         if(action==='toggle-task'&&task) await mutate(`/api/tasks/${id}`,'PATCH',{completed:!task.completed_at});
         if(action==='delete-task'&&task&&editorAllowsDelete(button,'task',id)&&await confirmDelete(`„${task.title}“ wird dauerhaft gelöscht. Kommentare werden ebenfalls gelöscht. Gespeicherte Fokuszeiten bleiben im Rückblick erhalten.`)){await mutate(`/api/tasks/${id}`,'DELETE');editor.close();}
         if(action==='delete-quest'&&quest&&editorAllowsDelete(button,'quest',id)&&await confirmDelete(`„${quest.title}“ löschen? Die Aufgaben bleiben erhalten und werden keiner Quest mehr zugeordnet.`)){await mutate(`/api/quests/${id}`,'DELETE');editor.close();}
@@ -887,7 +892,7 @@ function pwaError(error) {
     output.hidden = false;
 }
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=28').then(registration => {
+    navigator.serviceWorker.register('/sw.js?v=29').then(registration => {
         const watch = () => {
             const worker = registration.installing;
             worker?.addEventListener('statechange', () => {
