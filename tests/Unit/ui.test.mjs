@@ -552,7 +552,8 @@ test('focus places clock and controls before editable task fields and comments',
     assert.match(css,/\.focus-queue { flex: 0 0 auto;/);
     assert.match(css,/\.focus-task { flex: 1 0 auto;/);
     assert.doesNotMatch(css,/\.focus-queue {[^}]*max-height:/);
-    assert.match(css,/\.focus-notes { max-width: 65ch; font-size: 20px; line-height: 1.7/);
+    assert.match(css,/\.focus-notes \{[^}]*field-sizing: content/);
+    assert.doesNotMatch(css,/^.*(?:#focus-edit-form|\.focus-task \.task-comments|\.focus-notes).*max-width:.*$/m);
     assert.doesNotMatch(css,/focus-eyebrow|focus-exit-hint|-webkit-line-clamp: 2/);
 });
 test('focus refresh retains content scroll and region focus for the same task, not a different task',()=>{

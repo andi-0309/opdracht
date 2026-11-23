@@ -238,8 +238,8 @@ function taskComments(taskId, compose = false) {
     return `<section class="task-comments" data-task-comments="${taskId}">
         <h3>Kommentare</h3>
         ${compose ? `<form id="focus-comment-form" data-task="${taskId}">
-            <label>Kommentar hinzufügen<textarea name="body" maxlength="10000" rows="3" required>${escapeHtml(commentDrafts.get(taskId))}</textarea></label>
-            <button class="button subtle" type="submit" ${postingComments.has(taskId) ? 'disabled' : ''}>Kommentar speichern</button>
+            <label><span class="sr-only">Kommentar hinzufügen</span><textarea name="body" placeholder="Kommentar hinzufügen …" maxlength="10000" rows="1" required>${escapeHtml(commentDrafts.get(taskId))}</textarea></label>
+            <button class="button subtle" type="submit" aria-label="Kommentar speichern" ${postingComments.has(taskId) ? 'disabled' : ''}>Speichern</button>
         </form>` : ''}
         <div data-comment-list aria-live="polite">Kommentare werden geladen …</div>
     </section>`;
@@ -256,7 +256,7 @@ async function loadTaskComments(section) {
             const label = created.toLocaleString('de-DE', {
                 day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit',
             });
-            return `<li><time datetime="${escapeHtml(comment.created_at)}">${escapeHtml(label)}</time><p>${escapeHtml(comment.body)}</p></li>`;
+            return `<li><p>${escapeHtml(comment.body)}</p><time datetime="${escapeHtml(comment.created_at)}">${escapeHtml(label)}</time></li>`;
         }).join('')}</ol>` : '<p class="empty-small">Noch keine Kommentare.</p>';
     } catch {
         if (section.isConnected && commentRequests.get(section) === request) list.textContent = 'Kommentare konnten nicht geladen werden.';
@@ -265,8 +265,8 @@ async function loadTaskComments(section) {
 function focusTaskFields(task) {
     const draft = focusDrafts.get(task.id);
     return `<form id="focus-edit-form" data-task="${task.id}">
-        <label id="focus-task-title">Aufgabe<input name="title" class="focus-title-input" value="${escapeHtml(draft?.title ?? task.title)}" maxlength="200" required autocomplete="off" enterkeyhint="done"></label>
-        <label>Beschreibung<textarea name="notes" class="focus-notes" maxlength="10000" rows="6">${escapeHtml(draft?.notes ?? task.notes)}</textarea></label>
+        <label><span id="focus-task-title" class="sr-only">Aufgabe</span><input name="title" class="focus-title-input" value="${escapeHtml(draft?.title ?? task.title)}" maxlength="200" required autocomplete="off" enterkeyhint="done"></label>
+        <label><span class="sr-only">Beschreibung</span><textarea name="notes" class="focus-notes" placeholder="Beschreibung hinzufügen …" maxlength="10000" rows="2">${escapeHtml(draft?.notes ?? task.notes)}</textarea></label>
         <button class="button subtle" type="submit" ${draft && !savingFocus.has(task.id) ? '' : 'disabled'}>Änderungen speichern</button>
         <span class="focus-save-status" role="status"></span>
     </form>${taskComments(task.id, true)}`;
@@ -867,7 +867,7 @@ function pwaError(error) {
     output.hidden = false;
 }
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=25').then(registration => {
+    navigator.serviceWorker.register('/sw.js?v=26').then(registration => {
         const watch = () => {
             const worker = registration.installing;
             worker?.addEventListener('statechange', () => {

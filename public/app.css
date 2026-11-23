@@ -460,20 +460,34 @@ button.log-entry:hover { background: var(--hover); }
 .focus-task:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .focus-task .tag { display: flex; font-size: 14px; margin: 0 0 10px; }
 .focus-task h2 { font-size: clamp(28px, 3vw, 42px); font-weight: 600; line-height: 1.3; letter-spacing: -.02em; margin: 0 0 18px; overflow-wrap: anywhere; max-width: 36ch; }
-.focus-notes { max-width: 65ch; font-size: 20px; line-height: 1.7; }
-#focus-edit-form, #focus-comment-form { display: grid; gap: 12px; }
-#focus-edit-form, .focus-task .task-comments { max-width: 65ch; }
-#focus-edit-form label, #focus-comment-form label { display: grid; gap: 6px; }
-#focus-edit-form label > *, #focus-comment-form label > * { margin-top: 0; }
-#focus-edit-form .button, #focus-comment-form .button { justify-self: start; }
-#focus-edit-form .focus-title-input { font-size: clamp(21px, 3vw, 30px); font-weight: 600; }
+#focus-edit-form { display: grid; gap: 8px; }
+#focus-edit-form label, #focus-comment-form label { min-width: 0; margin: 0; }
+#focus-edit-form :is(input, textarea) {
+    min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 0;
+    background: transparent; outline: none; cursor: text;
+}
+#focus-edit-form .focus-title-input { font-size: clamp(24px, 3vw, 36px); font-weight: 600; line-height: 1.25; letter-spacing: -.02em; }
+#focus-edit-form .focus-notes { font-size: 17px; font-weight: 400; line-height: 1.6; field-sizing: content; }
+@supports (field-sizing: content) {
+    #focus-edit-form .focus-notes { resize: none; }
+}
+#focus-edit-form .button { justify-self: start; }
 .focus-save-status:empty { display: none; }
 .focus-save-status, .task-comment-list time { color: var(--muted); font-size: 13px; }
-.task-comments { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 14px; min-width: 0; }
-.task-comments h3 { font-size: 16px; margin: 0 0 10px; }
-.task-comment-list { display: grid; gap: 8px; list-style: none; padding: 0; margin: 12px 0 0; }
-.task-comment-list li { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 10px 12px; }
-.task-comment-list p { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.task-comments { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; min-width: 0; }
+.task-comments h3 { font-size: 15px; margin: 0 0 8px; }
+#focus-comment-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px; }
+#focus-comment-form textarea {
+    margin: 0; min-height: 44px; padding: 10px; font-size: 16px; line-height: 1.4;
+    field-sizing: content; max-height: 10em; resize: none;
+}
+#focus-comment-form .button { min-height: 44px; padding: 6px 10px; font-size: 14px; }
+.task-comments .empty-small, [data-comment-list] { font-size: 14px; }
+.task-comments .empty-small { margin: 6px 0 0; padding: 0; }
+.task-comment-list { list-style: none; padding: 0; margin: 6px 0 0; }
+.task-comment-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; padding: 6px 0; }
+.task-comment-list li + li { border-top: 1px solid var(--line); }
+.task-comment-list p { flex: 1 1 14rem; min-width: 0; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (min-width: 1025px) and (min-height: 501px) {
     .focus-clock { padding-bottom: 20px; border-bottom: 1px solid var(--line); }
     .focus-clock .timer { font-size: clamp(88px, 9vw, 136px); }
@@ -501,7 +515,6 @@ button.log-entry:hover { background: var(--hover); }
     .focus-controls .button { min-height: 44px; padding: 6px 10px; gap: 6px; font-size: 13px; line-height: 1.25; }
     .focus-task { padding: 8px 4px 12px 0; }
     .focus-task h2 { font-size: 26px; margin-bottom: 12px; }
-    .focus-notes { font-size: 17px; line-height: 1.6; }
     .focus-page .notice { flex-shrink: 0; font-size: 12px; line-height: 1.3; margin: 4px 0; padding: 6px 8px; max-height: 12dvh; overflow: auto; }
     .focus-page.immersive-open .sidebar { display: none; }
     .focus-page.immersive-open .app-layout main { padding: max(8px, env(safe-area-inset-top)) max(14px, max(env(safe-area-inset-right), var(--shell-safe-right, 0px))) max(8px, env(safe-area-inset-bottom)) max(14px, max(env(safe-area-inset-left), var(--shell-safe-left, 0px))); }
