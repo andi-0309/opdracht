@@ -21,8 +21,20 @@ if (source / 'pubspec.lock').exists():
 (project / 'analysis_options.yaml').unlink(missing_ok=True)
 # The website and Authentik use HTTPS; no cleartext exception or certificate bypass.
 manifest = project / 'android/app/src/main/AndroidManifest.xml'
-text = manifest.read_text().replace('<application', '<uses-permission android:name="android.permission.INTERNET"/>\n    <application android:usesCleartextTraffic="false"')
+text = manifest.read_text().replace('    <application', '''    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+    <application android:usesCleartextTraffic="false"''', 1)
 text = text.replace('android:label="opdracht"', 'android:label="Opdracht"')
+text = text.replace('    </application>', '''        <provider
+            android:name=".UpdateFileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_paths" />
+        </provider>
+    </application>''')
 manifest.write_text(text)
 # Use the existing Opdracht identity, not the generated Flutter launcher icon.
 resources = project / 'android/app/src/main/res'

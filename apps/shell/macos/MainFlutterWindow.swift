@@ -3,6 +3,7 @@ import FlutterMacOS
 
 class MainFlutterWindow: NSWindow {
   private var windowChannel: FlutterMethodChannel?
+  private var installerChannel: FlutterMethodChannel?
   private var dragEvent: NSEvent?
 
   override func sendEvent(_ event: NSEvent) {
@@ -47,6 +48,22 @@ class MainFlutterWindow: NSWindow {
         return
       }
       result(nil)
+    }
+
+    installerChannel = FlutterMethodChannel(
+      name: "eu.zerver.opdracht/installer",
+      binaryMessenger: flutterViewController.engine.binaryMessenger)
+    installerChannel?.setMethodCallHandler { call, result in
+      guard call.method == "open" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      guard let path = call.arguments as? String,
+            NSWorkspace.shared.open(URL(fileURLWithPath: path)) else {
+        result(FlutterError(code: "installer_unavailable", message: nil, details: nil))
+        return
+      }
+      result(true)
     }
 
     RegisterGeneratedPlugins(registry: flutterViewController)

@@ -113,6 +113,11 @@ jobs:
           lipo apps/shell/build/native/build/macos/Build/Products/Release/opdracht.app/Contents/MacOS/opdracht -verify_arch arm64
           test "$(lipo -archs apps/shell/build/native/build/macos/Build/Products/Release/opdracht.app/Contents/MacOS/opdracht)" = arm64
           ditto -c -k --sequesterRsrc --keepParent apps/shell/build/native/build/macos/Build/Products/Release/opdracht.app dist/Opdracht-macOS-arm64.zip
+          staging="$(mktemp -d)"
+          ditto apps/shell/build/native/build/macos/Build/Products/Release/opdracht.app "$staging/Opdracht.app"
+          ln -s /Applications "$staging/Applications"
+          hdiutil create -volname Opdracht -srcfolder "$staging" -format UDZO dist/Opdracht-macOS-arm64.dmg
+          hdiutil verify dist/Opdracht-macOS-arm64.dmg
       - uses: actions/upload-artifact@v4
         with:
           name: Opdracht-${{ matrix.platform }}

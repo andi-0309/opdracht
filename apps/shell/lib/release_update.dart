@@ -31,14 +31,15 @@ bool isNewerVersion(String candidate, String installed) {
 String? assetForPlatform(String platform) => switch (platform) {
   'android' => 'Opdracht-Android.apk',
   'windows' => 'Opdracht-Windows-x64-Setup.exe',
-  'macos' => 'Opdracht-macOS-arm64.zip',
+  'macos' => 'Opdracht-macOS-arm64.dmg',
   _ => null,
 };
 
 class ReleaseUpdate {
-  const ReleaseUpdate(this.version, this.download);
+  const ReleaseUpdate(this.version, this.download, this.size);
   final String version;
   final Uri download;
+  final int size;
 
   static ReleaseUpdate? fromJson(Map<String, dynamic> json, String platform, String installed) {
     final tag = json['tag_name'];
@@ -48,12 +49,12 @@ class ReleaseUpdate {
     if (expected == null || json['assets'] is! List) return null;
     for (final asset in json['assets'] as List) {
       if (asset is! Map || asset['name'] != expected || asset['state'] != 'uploaded' ||
-          asset['size'] is! num || asset['size'] <= 0) continue;
+          asset['size'] is! int || asset['size'] <= 0) continue;
       final url = Uri.tryParse(asset['browser_download_url'] is String ? asset['browser_download_url'] as String : '');
       if (url != null && url.scheme == 'https' && url.host == 'github.com' &&
           url.port == 443 && url.userInfo.isEmpty && url.query.isEmpty && url.fragment.isEmpty &&
           url.path == '/andi-0309/opdracht/releases/download/$tag/$expected') {
-        return ReleaseUpdate(tag.replaceFirst(RegExp(r'^v'), ''), url);
+        return ReleaseUpdate(tag.replaceFirst(RegExp(r'^v'), ''), url, asset['size'] as int);
       }
     }
     return null;

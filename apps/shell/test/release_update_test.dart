@@ -25,8 +25,10 @@ void main() {
     for (final platform in ['android', 'windows', 'macos']) {
       final update = ReleaseUpdate.fromJson(release(platform: platform), platform, '0.6.1');
       expect(update?.version, '0.7.0');
+      expect(update?.size, 100);
       expect(update?.download.path, endsWith(assetForPlatform(platform)!));
     }
+    expect(assetForPlatform('macos'), 'Opdracht-macOS-arm64.dmg');
     expect(assetForPlatform('windows'), 'Opdracht-Windows-x64-Setup.exe');
     expect(ReleaseUpdate.fromJson(release(), 'macos', '0.6.1'), isNull);
     expect(ReleaseUpdate.fromJson(release(), 'linux', '0.6.1'), isNull);
