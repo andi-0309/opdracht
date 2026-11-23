@@ -481,6 +481,7 @@ button.log-entry:hover { background: var(--hover); }
     field-sizing: content; max-height: 10em; resize: none;
 }
 #focus-comment-form .button { min-height: 44px; padding: 6px 10px; font-size: 14px; }
+#focus-comment-form :is(textarea, button):focus-visible { outline-offset: -3px; }
 .task-comments .empty-small, [data-comment-list] { font-size: 14px; }
 .task-comments .empty-small { margin: 6px 0 0; padding: 0; }
 .task-comment-list { list-style: none; padding: 0; margin: 6px 0 0; }
