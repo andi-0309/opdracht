@@ -93,6 +93,40 @@ class PlannerTest extends TestCase
         $this->assertDatabaseCount('tasks', 0);
     }
 
+    public function test_task_comments_store_server_time_and_stay_private(): void
+    {
+        $user = User::factory()->create();
+        $task = Task::factory()->create(['user_id' => $user->id]);
+        $otherUser = User::factory()->create();
+        $url = "/api/tasks/{$task->id}/comments";
+
+        $this->getJson($url)->assertUnauthorized();
+        $this->actingAs($otherUser)->getJson($url)->assertNotFound();
+        $this->postJson($url, ['body' => 'Foreign comment'])->assertNotFound();
+        $this->actingAs($user)->getJson($url)->assertExactJson(['comments' => []]);
+        $this->postJson($url, ['body' => '   '])->assertUnprocessable();
+        $this->postJson($url, ['body' => str_repeat('a', 10001)])->assertUnprocessable();
+
+        $this->travelTo(now('UTC')->setDate(2026, 11, 23)->setTime(9, 14, 32));
+        $first = $this->postJson($url, [
+            'body' => "Ergebnis\nZeile zwei",
+            'created_at' => '2020-01-01T00:00:00Z',
+        ])->assertCreated()->assertJsonPath('created_at', '2026-11-23T09:14:32+00:00')->json('id');
+        $this->travel(1)->minute();
+        $second = $this->postJson($url, ['body' => 'Ergänzung'])->assertCreated()->json('id');
+
+        $this->getJson($url)->assertOk()
+            ->assertJsonPath('comments.0.id', $second)
+            ->assertJsonPath('comments.0.created_at', '2026-11-23T09:15:32+00:00')
+            ->assertJsonPath('comments.1.id', $first)
+            ->assertJsonPath('comments.1.body', "Ergebnis\nZeile zwei")
+            ->assertJsonPath('comments.1.created_at', '2026-11-23T09:14:32+00:00');
+
+        $this->deleteJson("/api/tasks/{$task->id}")->assertOk();
+        $this->assertDatabaseCount('task_comments', 0);
+        $this->getJson($url)->assertNotFound();
+    }
+
     public function test_user_can_plan_edit_complete_and_reopen_task(): void
     {
         $user = User::factory()->create();

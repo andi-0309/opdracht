@@ -161,6 +161,38 @@ class PlannerController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    public function taskComments(Request $request, int $id): JsonResponse
+    {
+        $task = Task::where('user_id', $request->user()->id)->findOrFail($id);
+        $comments = DB::table('task_comments')->where('task_id', $task->id)
+            ->orderByDesc('id')->get(['id', 'body', 'created_at'])
+            ->map(fn (object $comment) => [
+                'id' => $comment->id,
+                'body' => $comment->body,
+                'created_at' => CarbonImmutable::parse($comment->created_at, 'UTC')->toIso8601String(),
+            ]);
+
+        return response()->json(['comments' => $comments])->header('Cache-Control', 'private, no-store');
+    }
+
+    public function storeTaskComment(Request $request, int $id): JsonResponse
+    {
+        $task = Task::where('user_id', $request->user()->id)->findOrFail($id);
+        $data = $request->validate(['body' => ['required', 'string', 'max:10000']]);
+        $createdAt = now('UTC');
+        $commentId = DB::table('task_comments')->insertGetId([
+            'task_id' => $task->id,
+            'body' => $data['body'],
+            'created_at' => $createdAt,
+        ]);
+
+        return response()->json([
+            'id' => $commentId,
+            'body' => $data['body'],
+            'created_at' => $createdAt->toIso8601String(),
+        ], 201);
+    }
+
     public function deleteTask(Request $request, int $id): JsonResponse
     {
         DB::transaction(function () use ($request, $id) {

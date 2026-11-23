@@ -536,13 +536,15 @@ test('visible screens omit redundant instructions but retain accessible reorder 
     assert.match(view,/id="reorder-help" class="sr-only"/);assert.match(view,/id="editor-error"[^>]*role="alert"/);
 });
 
-test('focus places clock and controls before complete readable task content without slogans',()=>{
+test('focus places clock and controls before editable task fields and comments',()=>{
     const ui=app();ui.run('state={today:"2026-11-19",tasks:[{id:1,title:"Readable title",notes:"**Full notes**"}],quests:[],focus:{id:9,task_id:1}}');
     const html=ui.run('focusPanel()');
     assert.ok(html.indexOf('data-focus-timer')<html.indexOf('focus-task-title'));
     assert.ok(html.indexOf('focus-controls')<html.indexOf('focus-task-title'));
     assert.match(html,/<section class="focus-task"[^>]*tabindex="0" aria-labelledby="focus-task-title"/);
-    assert.match(html,/<strong>Full notes<\/strong>/);
+    assert.match(html,/<input name="title"[^>]*value="Readable title"/);
+    assert.match(html,/<textarea name="notes"[^>]*>\*\*Full notes\*\*<\/textarea>/);
+    assert.ok(html.indexOf('name="notes"') < html.indexOf('id="focus-comment-form"'));
     assert.doesNotMatch(html,/EINE AUFGABE|Dein Fokus|serverseitig|Beim Stoppen/);
     const css=fs.readFileSync(new URL('../../public/app.css',import.meta.url),'utf8');
     assert.match(css,/\.focus-clock { flex-shrink: 0/);
@@ -617,4 +619,34 @@ test('focus refresh preserves the horizontal strip position',()=>{
     ui.run('state={today:"2026-11-19",tasks:[{id:1,title:"Work"}],quests:[],weekly:{}};location.hash="#focus";render()');
     let html='';Object.defineProperty(ui.node('#screen'),'innerHTML',{get(){return html;},set(value){html=value;strip.scrollLeft=0;}});
     strip.scrollLeft=240;ui.run('render()');assert.equal(strip.scrollLeft,240);
+});
+
+test('review sessions open the shared task modal with comments only if the task still exists', async () => {
+    const ui = app();
+    ui.run('state={today:"2026-11-23",tasks:[{id:7,title:"Current title"}],quests:[]};');
+    const html = ui.run('logCalendar(sessionDays([{id:1,task_id:7,title:"Saved title",started_at:"2026-11-23T10:00:00",ended_at:"2026-11-23T10:05:00"},{id:2,task_id:null,title:"Deleted title",started_at:"2026-11-23T11:00:00",ended_at:"2026-11-23T11:05:00"}], "2026-11-23"))');
+    assert.match(html, /<button type="button" class="log-entry" data-action="edit-task" data-id="7" data-session-id="1"/);
+    assert.match(html, /<article class="log-entry"[^>]*title="[^"]*Deleted title/);
+    const session = ui.node('review-entry');
+    session.dataset = {action:'edit-task', id:'7', sessionId:'1'};
+    session.closest = selector => selector === '[data-action]' ? session : null;
+    await ui.events.click({target:session, detail:0});
+    assert.equal(ui.node('#editor').open, true);
+    assert.match(ui.node('#editor-fields').innerHTML, /Current title/);
+    assert.match(ui.node('#editor-fields').innerHTML, /data-task-comments="7"/);
+    assert.doesNotMatch(ui.node('#editor-fields').innerHTML, /id="focus-comment-form"/);
+});
+
+test('focus edits keep per-task drafts and save only the changed field', async () => {
+    const ui = app();
+    ui.run('state={tasks:[{id:1,title:"Original",notes:"Description"},{id:2,title:"Other"}]}; const writes=[]; mutate=async (...args)=>{writes.push(args);state.tasks[0].title=args[2].title;};');
+    const form = ui.node('#focus-edit-form');
+    form.dataset.task = '1';
+    form.elements = {title:{name:'title', value:'Updated'}};
+    ui.run('updateFocusDraft(document.querySelector("#focus-edit-form"),document.querySelector("#focus-edit-form").elements.title)');
+    assert.match(ui.run('focusTaskFields(state.tasks[0])'), /value="Updated"/);
+    assert.match(ui.run('focusTaskFields(state.tasks[1])'), /value="Other"/);
+    await ui.run('saveFocusTask(document.querySelector("#focus-edit-form"))');
+    assert.equal(ui.run('JSON.stringify(writes)'), '[["/api/tasks/1","PATCH",{"title":"Updated"}]]');
+    assert.equal(ui.run('focusDrafts.size'), 0);
 });

@@ -13,6 +13,11 @@ let reviewOffset = 0;
 let reviewData = null;
 let reviewSequence = 0;
 const reviewDrafts = new Map();
+const focusDrafts = new Map();
+const savingFocus = new Map();
+const commentDrafts = new Map();
+const postingComments = new Set();
+const commentRequests = new WeakMap();
 let showCompletedQuests = false;
 let selectedTaskId = null;
 let editorSave = null;
@@ -229,11 +234,48 @@ function nextTask() {
 function focusTask() {
     return state.tasks.find(t=>t.id===state.focus?.task_id) || state.tasks.find(t=>t.id===selectedTaskId && !t.completed_at) || nextTask();
 }
+function taskComments(taskId, compose = false) {
+    return `<section class="task-comments" data-task-comments="${taskId}">
+        <h3>Kommentare</h3>
+        ${compose ? `<form id="focus-comment-form" data-task="${taskId}">
+            <label>Kommentar hinzufügen<textarea name="body" maxlength="10000" rows="3" required>${escapeHtml(commentDrafts.get(taskId))}</textarea></label>
+            <button class="button subtle" type="submit" ${postingComments.has(taskId) ? 'disabled' : ''}>Kommentar speichern</button>
+        </form>` : ''}
+        <div data-comment-list aria-live="polite">Kommentare werden geladen …</div>
+    </section>`;
+}
+async function loadTaskComments(section) {
+    const list = section.querySelector('[data-comment-list]');
+    const request = (commentRequests.get(section) || 0) + 1;
+    commentRequests.set(section, request);
+    try {
+        const {comments} = await api(`/api/tasks/${section.dataset.taskComments}/comments`);
+        if (!section.isConnected || commentRequests.get(section) !== request) return;
+        list.innerHTML = comments.length ? `<ol class="task-comment-list">${comments.map(comment => {
+            const created = new Date(comment.created_at);
+            const label = created.toLocaleString('de-DE', {
+                day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit',
+            });
+            return `<li><time datetime="${escapeHtml(comment.created_at)}">${escapeHtml(label)}</time><p>${escapeHtml(comment.body)}</p></li>`;
+        }).join('')}</ol>` : '<p class="empty-small">Noch keine Kommentare.</p>';
+    } catch {
+        if (section.isConnected && commentRequests.get(section) === request) list.textContent = 'Kommentare konnten nicht geladen werden.';
+    }
+}
+function focusTaskFields(task) {
+    const draft = focusDrafts.get(task.id);
+    return `<form id="focus-edit-form" data-task="${task.id}">
+        <label id="focus-task-title">Aufgabe<input name="title" class="focus-title-input" value="${escapeHtml(draft?.title ?? task.title)}" maxlength="200" required autocomplete="off" enterkeyhint="done"></label>
+        <label>Beschreibung<textarea name="notes" class="focus-notes" maxlength="10000" rows="6">${escapeHtml(draft?.notes ?? task.notes)}</textarea></label>
+        <button class="button subtle" type="submit" ${draft && !savingFocus.has(task.id) ? '' : 'disabled'}>Änderungen speichern</button>
+        <span class="focus-save-status" role="status"></span>
+    </form>${taskComments(task.id, true)}`;
+}
 function focusPanel() {
     const activeTask=state.tasks.find(t=>t.id===state.focus?.task_id);
     const selected=focusTask();
     const available=state.tasks.filter(t=>!t.completed_at);
-    return `<section class="focus-view"><div class="focus-clock"><div data-focus-timer class="timer" role="timer" aria-live="off" aria-label="Verstrichene Fokuszeit">00:00</div><p class="timer-label" role="status">${state.focus?'FOKUS LÄUFT':'BEREIT FÜR FOKUS'}</p><div class="focus-controls">${state.focus?`${activeTask?`<button class="button primary" data-action="finish-focus" data-id="${activeTask.id}">${icon('check')} Aufgabe abschließen</button>`:''}<button class="button subtle" data-action="stop-focus">${icon('square')} Timer stoppen &amp; Zeit speichern</button>`:available.length?`<button class="button primary" data-action="start-focus" ${selected?'':'disabled'}>${icon('play')} Fokus starten</button>`:'<button class="button primary" data-action="new-task">+ Aufgabe erstellen</button>'}</div></div><div class="focus-content">${focusQueuePanel()}<section class="focus-task" data-content-key="${selected?.id||'empty'}" tabindex="0" aria-labelledby="focus-task-title">${selected?`${tag(taskQuest(selected))}<h2 id="focus-task-title">${escapeHtml(selected.title)}</h2>${selected.notes?`<div class="markdown focus-notes">${markdown(selected.notes)}</div>`:''}`:'<h2 id="focus-task-title">Keine offenen Aufgaben</h2>'}</section></div></section>`;
+    return `<section class="focus-view"><div class="focus-clock"><div data-focus-timer class="timer" role="timer" aria-live="off" aria-label="Verstrichene Fokuszeit">00:00</div><p class="timer-label" role="status">${state.focus?'FOKUS LÄUFT':'BEREIT FÜR FOKUS'}</p><div class="focus-controls">${state.focus?`${activeTask?`<button class="button primary" data-action="finish-focus" data-id="${activeTask.id}">${icon('check')} Aufgabe abschließen</button>`:''}<button class="button subtle" data-action="stop-focus">${icon('square')} Timer stoppen &amp; Zeit speichern</button>`:available.length?`<button class="button primary" data-action="start-focus" ${selected?'':'disabled'}>${icon('play')} Fokus starten</button>`:'<button class="button primary" data-action="new-task">+ Aufgabe erstellen</button>'}</div></div><div class="focus-content">${focusQueuePanel()}<section class="focus-task" data-content-key="${selected?.id||'empty'}" tabindex="0" aria-labelledby="focus-task-title">${selected?`${tag(taskQuest(selected))}${focusTaskFields(selected)}`:'<h2 id="focus-task-title">Keine offenen Aufgaben</h2>'}</section></div></section>`;
 }
 function focusScreen() {
     return `<section id="focus-workspace" class="focus-workspace"><header class="focus-toolbar"><h1>Fokus</h1></header>${focusPanel()}</section>`;
@@ -292,7 +334,12 @@ function logCalendar(days) {
             const top=(entry.from.getHours()-startHour)*60+entry.from.getMinutes();
             const label=entry.from.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})+'–'+entry.to.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
             const info=label+' · '+entry.title+' · '+(entry.quest_title||'Ohne Quest')+' · '+duration(entry.seconds);
-            return `<article class="log-entry" tabindex="0" title="${escapeHtml(info)}" aria-label="${escapeHtml(info)}" style="--quest-color:${color(entry.quest_color)};top:${top}px;height:${Math.max(18,entry.seconds/60-2)}px;left:${entry.lane/count*100}%;width:${100/count}%"><time>${label}</time><strong>${escapeHtml(entry.title)}</strong><span>${escapeHtml(entry.quest_title||'Ohne Quest')} · ${duration(entry.seconds)}</span></article>`;
+            const style = `--quest-color:${color(entry.quest_color)};top:${top}px;height:${Math.max(18,entry.seconds/60-2)}px;left:${entry.lane/count*100}%;width:${100/count}%`;
+            const content = `<time>${label}</time><strong>${escapeHtml(entry.title)}</strong><span>${escapeHtml(entry.quest_title||'Ohne Quest')} · ${duration(entry.seconds)}</span>`;
+            if (state.tasks.some(task => task.id === entry.task_id)) {
+                return `<button type="button" class="log-entry" data-action="edit-task" data-id="${entry.task_id}" data-session-id="${entry.id}" title="${escapeHtml(info)}" aria-label="${escapeHtml(info+' – Aufgabe öffnen')}" style="${style}">${content}</button>`;
+            }
+            return `<article class="log-entry" tabindex="0" title="${escapeHtml(info)}" aria-label="${escapeHtml(info)}" style="${style}">${content}</article>`;
         }).join('')}</div></section>`;
     }).join('')}</div>`;
 }
@@ -320,6 +367,11 @@ function render() {
     const previousContent=screen.querySelector('.focus-task');
     const contentPosition=previousContent ? {key:previousContent.dataset.contentKey,top:screen.querySelector('.focus-content')?.scrollTop || 0,focused:focused===previousContent} : null;
     const focusedAction=focused?.dataset.action;
+    const activeForm=focused?.closest('form');
+    const focusField=activeForm?.dataset.task && focused.matches('input, textarea') ? {
+        form:activeForm.id, task:activeForm.dataset.task, name:focused.name,
+        start:focused.selectionStart, end:focused.selectionEnd,
+    } : null;
     const previousQueue=screen.querySelector('.focus-queue .task-list');
     const queueScroll=previousQueue?.scrollLeft || 0;
     const previousProgress=new Map(Array.from(screen.querySelectorAll('[data-progress-id]'),bar=>[bar.dataset.progressId,bar.style.width]));
@@ -346,7 +398,7 @@ function render() {
     syncImmersive();
     if(focusedAction) {
         const scope=screen;
-        const target=Array.from(scope.querySelectorAll('button[data-action]')).find(button=>button.dataset.action===focusedAction && button.dataset.id===focused.dataset.id);
+        const target=Array.from(scope.querySelectorAll('button[data-action]')).find(button=>button.dataset.action===focusedAction && button.dataset.id===focused.dataset.id && button.dataset.sessionId===focused.dataset.sessionId);
         target?.focus({preventScroll:true});
 
     }
@@ -357,7 +409,14 @@ function render() {
         const currentScroller=screen.querySelector('.focus-content');
         if(currentScroller) currentScroller.scrollTop=contentPosition.top;
         if(contentPosition.focused) currentContent.focus({preventScroll:true});
+        if (focusField) {
+            const form = currentContent.querySelector('#'+focusField.form);
+            const field = form?.dataset.task === focusField.task ? form.elements[focusField.name] : null;
+            field?.focus({preventScroll:true});
+            field?.setSelectionRange(focusField.start, focusField.end);
+        }
     }
+    screen.querySelectorAll('[data-task-comments]').forEach(loadTaskComments);
     updateTimer();
 }
 function updateTimer() {
@@ -393,7 +452,7 @@ function taskEditor(task, date=state.today) {
         </div>` : '';
     const deleteAction = task ? `<button type="button" class="icon-button editor-delete" data-action="delete-task" data-id="${task.id}" aria-label="Aufgabe löschen" title="Aufgabe löschen">${icon('trash')}</button>` : '';
 
-    openEditor(task?'Aufgabe bearbeiten':'Aufgabe hinzufügen', fields+status, async data=>{
+    openEditor(task?'Aufgabe bearbeiten':'Aufgabe hinzufügen', fields+status+(task ? taskComments(task.id) : ''), async data=>{
         if(!task && !state.focus) selectedTaskId=null;
         await mutate(task?`/api/tasks/${task.id}`:'/api/tasks',task?'PATCH':'POST',{
             title:data.get('title').trim(),
@@ -404,6 +463,7 @@ function taskEditor(task, date=state.today) {
         });
     }, deleteAction);
     if(!task) editorForm.querySelector('.dialog-actions [type="submit"]').textContent='Aufgabe hinzufügen';
+    editorForm.querySelectorAll('[data-task-comments]').forEach(loadTaskComments);
 }
 function questEditor(quest) {
     editorTarget=quest?{type:'quest',id:quest.id}:null;
@@ -443,7 +503,7 @@ document.addEventListener('click',async event=>{
         if(action==='focus-task'){selectedTaskId=id;location.hash='focus';return render();}
         button.disabled=true;
         if(action==='toggle-task'&&task) await mutate(`/api/tasks/${id}`,'PATCH',{completed:!task.completed_at});
-        if(action==='delete-task'&&task&&editorAllowsDelete(button,'task',id)&&await confirmDelete(`„${task.title}“ wird dauerhaft gelöscht. Bereits gespeicherte Fokuszeiten bleiben im Rückblick erhalten.`)){await mutate(`/api/tasks/${id}`,'DELETE');editor.close();}
+        if(action==='delete-task'&&task&&editorAllowsDelete(button,'task',id)&&await confirmDelete(`„${task.title}“ wird dauerhaft gelöscht. Kommentare werden ebenfalls gelöscht. Gespeicherte Fokuszeiten bleiben im Rückblick erhalten.`)){await mutate(`/api/tasks/${id}`,'DELETE');editor.close();}
         if(action==='delete-quest'&&quest&&editorAllowsDelete(button,'quest',id)&&await confirmDelete(`„${quest.title}“ löschen? Die Aufgaben bleiben erhalten und werden keiner Quest mehr zugeordnet.`)){await mutate(`/api/quests/${id}`,'DELETE');editor.close();}
         if(action==='start-focus'&&focusTask()) await mutate('/api/focus','POST',{task_id:focusTask().id});
         if(action==='stop-focus'&&state.focus) await mutate('/api/focus/stop','POST',{session_id:state.focus.id});
@@ -639,11 +699,112 @@ document.addEventListener('keydown',async event=>{
     }
     catch(error) { showError(error.message); }
 });
+function updateFocusDraft(form, field) {
+    const taskId = Number(form.dataset.task);
+    const task = state.tasks.find(item => item.id === taskId);
+    const draft = focusDrafts.get(taskId) || {};
+    const saved = savingFocus.get(taskId)?.[field.name] ?? task[field.name] ?? '';
+    if (field.value === saved) delete draft[field.name];
+    else draft[field.name] = field.value;
+    const changed = Object.keys(draft).length > 0;
+    if (changed) focusDrafts.set(taskId, draft);
+    else focusDrafts.delete(taskId);
+    form.querySelector('button').disabled = !changed || savingFocus.has(taskId);
+    form.querySelector('.focus-save-status').textContent = '';
+}
+async function saveFocusTask(form) {
+    const taskId = Number(form.dataset.task);
+    const draft = {...focusDrafts.get(taskId)};
+    if (!Object.keys(draft).length || savingFocus.has(taskId)) return;
+    const title = form.elements.title;
+    if (!title.value.trim()) {
+        title.setCustomValidity('Gib einen Aufgabentitel ein.');
+        title.reportValidity();
+        return;
+    }
+    savingFocus.set(taskId, draft);
+    form.querySelector('button').disabled = true;
+    try {
+        await mutate(`/api/tasks/${taskId}`, 'PATCH', draft);
+        const remaining = focusDrafts.get(taskId);
+        if (remaining) {
+            for (const field of Object.keys(draft)) {
+                if (remaining[field] === draft[field]) delete remaining[field];
+            }
+            if (!Object.keys(remaining).length) focusDrafts.delete(taskId);
+        }
+        const current = screen.querySelector('#focus-edit-form');
+        if (Number(current?.dataset.task) === taskId) {
+            const task = state.tasks.find(item => item.id === taskId);
+            if (focusDrafts.get(taskId)?.title === undefined && task && current.elements.title.value !== task.title) {
+                current.elements.title.value = task.title;
+            }
+            current.querySelector('.focus-save-status').textContent = 'Gespeichert.';
+        }
+    } catch (error) {
+        const remaining = {...draft, ...focusDrafts.get(taskId)};
+        focusDrafts.set(taskId, remaining);
+        showError(error.message);
+    } finally {
+        savingFocus.delete(taskId);
+        const current = screen.querySelector('#focus-edit-form');
+        if (Number(current?.dataset.task) === taskId) current.querySelector('button').disabled = !focusDrafts.has(taskId);
+    }
+}
+async function postFocusComment(form) {
+    const taskId = Number(form.dataset.task);
+    const field = form.elements.body;
+    const original = field.value;
+    const body = original.trim();
+    if (postingComments.has(taskId)) return;
+    if (!body) {
+        field.setCustomValidity('Schreibe einen Kommentar.');
+        field.reportValidity();
+        return;
+    }
+    postingComments.add(taskId);
+    form.querySelector('button').disabled = true;
+    try {
+        await api(`/api/tasks/${taskId}/comments`, 'POST', {body});
+        if (commentDrafts.get(taskId) === original) commentDrafts.delete(taskId);
+        const current = screen.querySelector('#focus-comment-form');
+        if (Number(current?.dataset.task) === taskId && current.elements.body.value === original) {
+            current.elements.body.value = '';
+        }
+        document.querySelectorAll(`[data-task-comments="${taskId}"]`).forEach(loadTaskComments);
+    } catch (error) {
+        showError(error.message);
+    } finally {
+        postingComments.delete(taskId);
+        const current = screen.querySelector('#focus-comment-form');
+        if (Number(current?.dataset.task) === taskId) current.querySelector('button').disabled = false;
+    }
+}
 document.addEventListener('input',event=>{
+    const focusForm = event.target.closest('#focus-edit-form');
+    if (focusForm) {
+        event.target.setCustomValidity('');
+        updateFocusDraft(focusForm, event.target);
+        return;
+    }
+    const commentForm = event.target.closest('#focus-comment-form');
+    if (commentForm) {
+        event.target.setCustomValidity('');
+        commentDrafts.set(Number(commentForm.dataset.task), event.target.value);
+        return;
+    }
     const form=event.target.closest('#weekly-review-form');
     if(form) {reviewDrafts.set(form.dataset.week,form.elements.notes.value);const status=document.querySelector('#review-save-status');if(status) status.textContent='Ungespeicherter Entwurf';}
 });
 document.addEventListener('submit',async event=>{
+    if (event.target.id === 'focus-edit-form') {
+        event.preventDefault();
+        return await saveFocusTask(event.target);
+    }
+    if (event.target.id === 'focus-comment-form') {
+        event.preventDefault();
+        return await postFocusComment(event.target);
+    }
     const form=event.target.closest('#weekly-review-form');if(!form)return;
     event.preventDefault();const button=form.querySelector('button');button.disabled=true;
     const week=form.dataset.week,notes=form.elements.notes.value;
@@ -656,7 +817,7 @@ editor.addEventListener('close',()=>{
     if(editorReturnFocus?.isConnected) editorReturnFocus.focus();
     else {
         const trigger=editorReturnFocus?.dataset;
-        const replacement=trigger?.action ? Array.from(screen.querySelectorAll('[data-action]')).find(button=>button.dataset.action===trigger.action && button.dataset.id===trigger.id && button.dataset.date===trigger.date) : null;
+        const replacement=trigger?.action ? Array.from(screen.querySelectorAll('[data-action]')).find(button=>button.dataset.action===trigger.action && button.dataset.id===trigger.id && button.dataset.date===trigger.date && button.dataset.sessionId===trigger.sessionId) : null;
         (replacement || document.querySelector('#content'))?.focus();
     }
 });
@@ -706,7 +867,7 @@ function pwaError(error) {
     output.hidden = false;
 }
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=24').then(registration => {
+    navigator.serviceWorker.register('/sw.js?v=25').then(registration => {
         const watch = () => {
             const worker = registration.installing;
             worker?.addEventListener('statechange', () => {
