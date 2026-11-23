@@ -14,7 +14,8 @@ let reviewData = null;
 let reviewSequence = 0;
 const reviewDrafts = new Map();
 const focusDrafts = new Map();
-const savingFocus = new Map();
+const focusSaveTimers = new Map();
+const savingFocus = new Set();
 const commentDrafts = new Map();
 const postingComments = new Set();
 const commentRequests = new WeakMap();
@@ -104,8 +105,8 @@ function markdown(value) {
     if(list) html+=`</${list}>`;
     return html;
 }
-async function api(path, method = 'GET', body) {
-    const response = await fetch(path, {method, credentials:'same-origin', headers:{Accept:'application/json','Content-Type':'application/json','X-CSRF-TOKEN':csrf}, ...(body === undefined ? {} : {body:JSON.stringify(body)})}).catch(() => { throw new Error('Dein Server ist nicht erreichbar. Bitte prüfe deine Verbindung und versuche es erneut.'); });
+async function api(path, method = 'GET', body, options = {}) {
+    const response = await fetch(path, {method, credentials:'same-origin', ...options, headers:{Accept:'application/json','Content-Type':'application/json','X-CSRF-TOKEN':csrf}, ...(body === undefined ? {} : {body:JSON.stringify(body)})}).catch(() => { throw new Error('Dein Server ist nicht erreichbar. Bitte prüfe deine Verbindung und versuche es erneut.'); });
     if (response.status === 401 || response.status === 419) { location.href = '/login'; throw new Error('Bitte melde dich erneut an.'); }
     const data = await response.json().catch(() => ({}));
     if (!response.ok) { throw new Error(data.errors ? Object.values(data.errors).flat().join(' ') : data.message || 'Die Änderung konnte nicht gespeichert werden.'); }
@@ -267,7 +268,6 @@ function focusTaskFields(task) {
     return `<form id="focus-edit-form" data-task="${task.id}">
         <label><span id="focus-task-title" class="sr-only">Aufgabe</span><input name="title" class="focus-title-input" value="${escapeHtml(draft?.title ?? task.title)}" maxlength="200" required autocomplete="off" enterkeyhint="done"></label>
         <label><span class="sr-only">Beschreibung</span><textarea name="notes" class="focus-notes" placeholder="Beschreibung hinzufügen …" maxlength="10000" rows="2">${escapeHtml(draft?.notes ?? task.notes)}</textarea></label>
-        <button class="button subtle" type="submit" ${draft && !savingFocus.has(task.id) ? '' : 'disabled'}>Änderungen speichern</button>
         <span class="focus-save-status" role="status"></span>
     </form>${taskComments(task.id, true)}`;
 }
@@ -699,57 +699,66 @@ document.addEventListener('keydown',async event=>{
     }
     catch(error) { showError(error.message); }
 });
+function scheduleFocusSave(taskId) {
+    clearTimeout(focusSaveTimers.get(taskId));
+    focusSaveTimers.set(taskId, setTimeout(() => saveFocusTask(taskId), 600));
+}
 function updateFocusDraft(form, field) {
     const taskId = Number(form.dataset.task);
-    const task = state.tasks.find(item => item.id === taskId);
     const draft = focusDrafts.get(taskId) || {};
-    const saved = savingFocus.get(taskId)?.[field.name] ?? task[field.name] ?? '';
-    if (field.value === saved) delete draft[field.name];
-    else draft[field.name] = field.value;
-    const changed = Object.keys(draft).length > 0;
-    if (changed) focusDrafts.set(taskId, draft);
-    else focusDrafts.delete(taskId);
-    form.querySelector('button').disabled = !changed || savingFocus.has(taskId);
+    draft[field.name] = field.value;
+    focusDrafts.set(taskId, draft);
     form.querySelector('.focus-save-status').textContent = '';
+    scheduleFocusSave(taskId);
 }
-async function saveFocusTask(form) {
-    const taskId = Number(form.dataset.task);
-    const draft = {...focusDrafts.get(taskId)};
-    if (!Object.keys(draft).length || savingFocus.has(taskId)) return;
-    const title = form.elements.title;
-    if (!title.value.trim()) {
-        title.setCustomValidity('Gib einen Aufgabentitel ein.');
-        title.reportValidity();
-        return;
+function setFocusSaveStatus(taskId, message) {
+    const form = screen.querySelector('#focus-edit-form');
+    if (Number(form?.dataset.task) === taskId) form.querySelector('.focus-save-status').textContent = message;
+}
+async function saveFocusTask(taskId) {
+    clearTimeout(focusSaveTimers.get(taskId));
+    focusSaveTimers.delete(taskId);
+    if (savingFocus.has(taskId)) return;
+
+    const draft = focusDrafts.get(taskId);
+    const task = state.tasks.find(item => item.id === taskId);
+    if (!draft || !task) return;
+    const patch = {};
+    const submitted = {};
+    for (const [field, value] of Object.entries(draft)) {
+        const trimmed = value.trim();
+        if (field === 'title' && !trimmed) continue;
+        if (trimmed === (task[field] ?? '')) {
+            delete draft[field];
+        } else {
+            patch[field] = trimmed || null;
+            submitted[field] = value;
+        }
     }
-    savingFocus.set(taskId, draft);
-    form.querySelector('button').disabled = true;
+    const titleMessage = draft.title !== undefined && !draft.title.trim() ? 'Der Aufgabentitel darf nicht leer sein.' : '';
+    setFocusSaveStatus(taskId, titleMessage);
+    if (!Object.keys(draft).length) focusDrafts.delete(taskId);
+    if (!Object.keys(patch).length) return;
+
+    savingFocus.add(taskId);
     try {
-        await mutate(`/api/tasks/${taskId}`, 'PATCH', draft);
-        const remaining = focusDrafts.get(taskId);
-        if (remaining) {
-            for (const field of Object.keys(draft)) {
-                if (remaining[field] === draft[field]) delete remaining[field];
-            }
-            if (!Object.keys(remaining).length) focusDrafts.delete(taskId);
+        await api(`/api/tasks/${taskId}`, 'PATCH', patch, {keepalive:true});
+        if (!mutationPending) ++refreshSequence;
+        Object.assign(state.tasks.find(item => item.id === taskId) || task, patch);
+        for (const [field, value] of Object.entries(submitted)) {
+            if (draft[field] === value) delete draft[field];
         }
-        const current = screen.querySelector('#focus-edit-form');
-        if (Number(current?.dataset.task) === taskId) {
-            const task = state.tasks.find(item => item.id === taskId);
-            if (focusDrafts.get(taskId)?.title === undefined && task && current.elements.title.value !== task.title) {
-                current.elements.title.value = task.title;
-            }
-            current.querySelector('.focus-save-status').textContent = 'Gespeichert.';
-        }
+        if (!Object.keys(draft).length) focusDrafts.delete(taskId);
+        else if (!focusSaveTimers.has(taskId) && (draft.notes !== undefined || draft.title?.trim())) scheduleFocusSave(taskId);
     } catch (error) {
-        const remaining = {...draft, ...focusDrafts.get(taskId)};
-        focusDrafts.set(taskId, remaining);
-        showError(error.message);
+        setFocusSaveStatus(taskId, 'Nicht gespeichert. ' + error.message);
+        if (Number(screen.querySelector('#focus-edit-form')?.dataset.task) !== taskId) showError(error.message);
     } finally {
         savingFocus.delete(taskId);
-        const current = screen.querySelector('#focus-edit-form');
-        if (Number(current?.dataset.task) === taskId) current.querySelector('button').disabled = !focusDrafts.has(taskId);
     }
+}
+function flushFocusDrafts() {
+    for (const taskId of focusDrafts.keys()) saveFocusTask(taskId);
 }
 async function postFocusComment(form) {
     const taskId = Number(form.dataset.task);
@@ -783,8 +792,7 @@ async function postFocusComment(form) {
 document.addEventListener('input',event=>{
     const focusForm = event.target.closest('#focus-edit-form');
     if (focusForm) {
-        event.target.setCustomValidity('');
-        updateFocusDraft(focusForm, event.target);
+        if (!event.isComposing) updateFocusDraft(focusForm, event.target);
         return;
     }
     const commentForm = event.target.closest('#focus-comment-form');
@@ -796,10 +804,18 @@ document.addEventListener('input',event=>{
     const form=event.target.closest('#weekly-review-form');
     if(form) {reviewDrafts.set(form.dataset.week,form.elements.notes.value);const status=document.querySelector('#review-save-status');if(status) status.textContent='Ungespeicherter Entwurf';}
 });
+document.addEventListener('compositionend', event => {
+    const form = event.target.closest('#focus-edit-form');
+    if (form) updateFocusDraft(form, event.target);
+});
+document.addEventListener('focusout', event => {
+    const form = event.target.closest('#focus-edit-form');
+    if (form) saveFocusTask(Number(form.dataset.task));
+});
 document.addEventListener('submit',async event=>{
     if (event.target.id === 'focus-edit-form') {
         event.preventDefault();
-        return await saveFocusTask(event.target);
+        return await saveFocusTask(Number(event.target.dataset.task));
     }
     if (event.target.id === 'focus-comment-form') {
         event.preventDefault();
@@ -852,9 +868,13 @@ editorForm.addEventListener('submit',async event=>{
 });
 function setConnection(label, unavailable) { document.querySelector('.connection').classList.toggle('offline', unavailable); document.querySelector('#connection-text').textContent=label; }
 function connectionChanged(){const online=navigator.onLine;setConnection(online?'Verbinde …':'Offline',!online);if(!online)showError('Du bist offline. Angezeigte Daten können veraltet sein. Änderungen benötigen eine Verbindung.');else if(state)refresh();}
-window.addEventListener('online',connectionChanged);window.addEventListener('offline',connectionChanged);
+window.addEventListener('online', () => { connectionChanged(); flushFocusDrafts(); });window.addEventListener('offline',connectionChanged);
 window.addEventListener('hashchange',()=>{render();if(page==='review'&&state)loadReview();window.scrollTo(0,0);});
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!editor.open&&!confirmDialog.open&&!document.activeElement?.matches('input, textarea, select'))refresh(true);});
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) flushFocusDrafts();
+    else if (!editor.open && !confirmDialog.open && !document.activeElement?.matches('input, textarea, select')) refresh(true);
+});
+window.addEventListener('pagehide', flushFocusDrafts);
 setInterval(updateTimer,1000);
 setInterval(()=>{if(!document.hidden&&!editor.open&&!confirmDialog.open&&!mutationPending&&!document.activeElement?.matches('input, textarea, select'))refresh(true);},30000);
 let installPrompt;
@@ -867,7 +887,7 @@ function pwaError(error) {
     output.hidden = false;
 }
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=26').then(registration => {
+    navigator.serviceWorker.register('/sw.js?v=27').then(registration => {
         const watch = () => {
             const worker = registration.installing;
             worker?.addEventListener('statechange', () => {

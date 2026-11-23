@@ -471,7 +471,6 @@ button.log-entry:hover { background: var(--hover); }
 @supports (field-sizing: content) {
     #focus-edit-form .focus-notes { resize: none; }
 }
-#focus-edit-form .button { justify-self: start; }
 .focus-save-status:empty { display: none; }
 .focus-save-status, .task-comment-list time { color: var(--muted); font-size: 13px; }
 .task-comments { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; min-width: 0; }

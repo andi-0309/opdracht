@@ -638,16 +638,72 @@ test('review sessions open the shared task modal with comments only if the task 
     assert.doesNotMatch(ui.node('#editor-fields').innerHTML, /id="focus-comment-form"/);
 });
 
-test('focus edits keep per-task drafts and save only the changed field', async () => {
+test('focus autosaves only changed fields after typing or leaving a field', async () => {
     const ui = app();
-    ui.run('state={tasks:[{id:1,title:"Original",notes:"Description"},{id:2,title:"Other"}]}; const writes=[]; mutate=async (...args)=>{writes.push(args);state.tasks[0].title=args[2].title;};');
+    ui.run(`state={tasks:[{id:1,title:"Original",notes:"Description"},{id:2,title:"Other"}]};
+        const writes=[];
+        api=async (...args)=>{writes.push(args);};`);
     const form = ui.node('#focus-edit-form');
     form.dataset.task = '1';
-    form.elements = {title:{name:'title', value:'Updated'}};
-    ui.run('updateFocusDraft(document.querySelector("#focus-edit-form"),document.querySelector("#focus-edit-form").elements.title)');
+    const field = {name:'title', value:'Updated', closest:selector=>selector === '#focus-edit-form' ? form : null};
+    ui.events.input({target:field});
+    assert.equal(ui.run('writes.length'), 0);
     assert.match(ui.run('focusTaskFields(state.tasks[0])'), /value="Updated"/);
     assert.match(ui.run('focusTaskFields(state.tasks[1])'), /value="Other"/);
-    await ui.run('saveFocusTask(document.querySelector("#focus-edit-form"))');
-    assert.equal(ui.run('JSON.stringify(writes)'), '[["/api/tasks/1","PATCH",{"title":"Updated"}]]');
+    assert.doesNotMatch(ui.run('focusTaskFields(state.tasks[0])').split('</form>')[0], /<button/);
+    await ui.node('hold').callback();
+    assert.equal(ui.run('JSON.stringify(writes)'), '[["/api/tasks/1","PATCH",{"title":"Updated"},{"keepalive":true}]]');
+    field.name = 'notes';
+    field.value = '';
+    ui.events.input({target:field});
+    ui.events.focusout({target:field});
+    await Promise.resolve();
+    assert.equal(ui.node('hold').callback, null);
+    assert.equal(ui.run('writes.length'), 2);
+    assert.equal(ui.run('state.tasks[0].notes'), null);
     assert.equal(ui.run('focusDrafts.size'), 0);
+});
+
+test('focus retains new edits made during a save, including a revert to the original title', async () => {
+    const ui = app();
+    ui.run(`state={tasks:[{id:1,title:"Original"}]};
+        const writes=[];
+        let completeWrite;
+        api=(_,method,patch)=>new Promise(resolve=>{writes.push(patch);completeWrite=resolve;});`);
+    const form = ui.node('#focus-edit-form');
+    form.dataset.task = '1';
+    const field = {name:'title', value:'Updated', closest:()=>form};
+    ui.events.input({target:field});
+    const firstSave = ui.node('hold').callback();
+    field.value = 'Original';
+    ui.events.input({target:field});
+    await ui.node('hold').callback();
+    assert.equal(ui.run('writes.length'), 1);
+    ui.run('completeWrite()');
+    await firstSave;
+    const secondSave = ui.node('hold').callback();
+    ui.run('completeWrite()');
+    await secondSave;
+    assert.equal(ui.run('JSON.stringify(writes)'), '[{"title":"Updated"},{"title":"Original"}]');
+    assert.equal(ui.run('state.tasks[0].title'), 'Original');
+});
+
+test('focus saves notes with an empty title and retains edits after a failed request', async () => {
+    const ui = app();
+    ui.run(`state={tasks:[{id:1,title:"Original"}]};
+        const writes=[];
+        api=async (_,method,patch)=>{writes.push(patch);throw new Error("Verbindung unterbrochen.");};`);
+    const form = ui.node('#focus-edit-form');
+    form.dataset.task = '1';
+    ui.events.input({target:{name:'title', value:' ', closest:()=>form}});
+    ui.events.input({target:{name:'notes', value:'New notes', closest:()=>form}});
+    await ui.node('hold').callback();
+    assert.match(ui.node('.focus-save-status').textContent, /Nicht gespeichert/);
+    assert.equal(ui.run('focusDrafts.get(1).notes'), 'New notes');
+    ui.run('api=async (_,method,patch)=>{writes.push(patch);};');
+    await ui.run('saveFocusTask(1)');
+    assert.equal(ui.run('JSON.stringify(writes)'), '[{"notes":"New notes"},{"notes":"New notes"}]');
+    assert.equal(ui.run('state.tasks[0].title'), 'Original');
+    assert.equal(ui.run('focusDrafts.get(1).notes'), undefined);
+    assert.match(ui.node('.focus-save-status').textContent, /Aufgabentitel/);
 });
